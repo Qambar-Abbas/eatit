@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_polls/flutter_polls.dart';
-import '../controllers/appService.dart'; // Use AppService instead of UserService
+import '../services/appService.dart'; // Use AppService instead of UserService
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
