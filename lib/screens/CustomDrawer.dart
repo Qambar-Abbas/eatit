@@ -1,10 +1,9 @@
-import 'package:eatit/views/sign_In_view.dart';
+import 'package:eatit/screens/sign_In_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:package_info_plus/package_info_plus.dart'; // Import the package for app version
 import 'package:firebase_auth/firebase_auth.dart'; // Import Firebase Auth for user info
 import 'ProfileScreen.dart';
-import '../controllers/appService.dart'; // Assuming this is the file where AppService is defined
+import '../services/appService.dart'; // Assuming this is the file where AppService is defined
 
 class CustomDrawer extends StatefulWidget {
   List<Map<String, dynamic>>? families;
@@ -25,16 +24,16 @@ class _CustomDrawerState extends State<CustomDrawer> {
   final TextEditingController _familyNameController = TextEditingController();
   final TextEditingController _adminEmailController = TextEditingController();
   final TextEditingController _familyIdController = TextEditingController();
-  final TextEditingController _memberEmailController =
-      TextEditingController(); // Added for family members
-  String _appVersion = 'Loading...'; // Default value while fetching version
+  final TextEditingController _memberEmailController = TextEditingController(); // Added for family members
+  String appVersion = 'Loading...'; // Default value while fetching version
+  String platform = '';
   String _username = 'Loading...'; // Placeholder for the username
   String _profilePhotoUrl = ''; // Placeholder for the profile photo URL
 
   @override
   void initState() {
     super.initState();
-    _fetchAppVersion(); // Fetch the app version when the widget is initialized
+    _initializeAppInfo(); // Fetch the app version when the widget is initialized
     _loadUserProfile(); // Fetch the user's profile photo and username
     _fetchFamilies();
     families = widget.families;
@@ -47,12 +46,22 @@ class _CustomDrawerState extends State<CustomDrawer> {
       });
     });
   }
+void _initializeAppInfo() async {
+    try {
+      final version = await AppService.getAppVersion();
+      final platformName = AppService.getPlatform();
 
-  Future<void> _fetchAppVersion() async {
-    PackageInfo packageInfo = await PackageInfo.fromPlatform();
-    setState(() {
-      _appVersion = packageInfo.version; // Fetch version
-    });
+      setState(() {
+        appVersion = version;
+        platform = platformName;
+      });
+    } catch (e) {
+      print('Error retrieving app info: $e');
+      setState(() {
+        appVersion = 'Unavailable';
+        platform = 'Unavailable';
+      });
+    }
   }
 
   Future<void> _loadUserProfile() async {
@@ -74,7 +83,6 @@ class _CustomDrawerState extends State<CustomDrawer> {
     return Drawer(
       child: Column(
         children: [
-          // Custom Header with Profile Info and Logout Button and App Version
           Container(
             padding: const EdgeInsets.all(16.0),
             color: Colors.grey[200],
@@ -116,7 +124,9 @@ class _CustomDrawerState extends State<CustomDrawer> {
                   ),
                 ),
                 // App Version Display
-                Text('App Version: $_appVersion',
+                Text('App Version: $appVersion',
+                    style: const TextStyle(color: Colors.grey)),
+                Text('Platform: $platform',
                     style: const TextStyle(color: Colors.grey)),
               ],
             ),

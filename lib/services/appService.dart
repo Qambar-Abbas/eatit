@@ -1,7 +1,43 @@
+import 'dart:io';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class AppService {
+
+  static Future<String> getAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      return packageInfo.version; // Returns the app version for mobile platforms
+    } catch (e) {
+      print('Error retrieving app version: $e');
+      return "Unavailable";
+    }
+  }
+
+  /// Detects the current platform and returns its name
+  static String getPlatform() {
+    if (kIsWeb) {
+      // When running on the web, fetch the version from the Android app version directly
+      return 'Web'; // Just returning 'Web' as platform
+    }
+    try {
+      if (Platform.isAndroid) return 'Android';
+      if (Platform.isIOS) return 'iOS';
+      if (Platform.isMacOS) return 'macOS';
+      if (Platform.isWindows) return 'Windows';
+      if (Platform.isLinux) return 'Linux';
+      return 'Unknown';
+    } catch (e) {
+      print('Error detecting platform: $e');
+      return 'Unknown';
+    }
+  }
+
+
+
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
@@ -21,20 +57,20 @@ class AppService {
     }
   }
 
-  Future<void> createAccount(
-      String uid, String email, String username, String photoURL) async {
-    try {
-      await _firestore.collection('users').doc(uid).set({
-        'email': email,
-        'username': username,
-        'photoURL': photoURL,
-        'createdAt': FieldValue.serverTimestamp(),
-        'families': [], // List of families the user is part of
-      }, SetOptions(merge: true));
-    } catch (e) {
-      print('Error creating account: $e');
-    }
-  }
+  // Future<void> createAccount(
+  //     String uid, String email, String username, String photoURL) async {
+  //   try {
+  //     await _firestore.collection('users').doc(email).set({
+  //       'email': email,
+  //       'username': username,
+  //       'photoURL': photoURL,
+  //       'createdAt': FieldValue.serverTimestamp(),
+  //       'families': [], // List of families the user is part of
+  //     }, SetOptions(merge: true));
+  //   } catch (e) {
+  //     print('Error creating account: $e');
+  //   }
+  // }
 
   Future<void> createFamily(String familyName) async {
     try {
