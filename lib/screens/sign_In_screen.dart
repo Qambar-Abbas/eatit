@@ -12,7 +12,6 @@ class SignInScreen extends StatefulWidget {
   @override
   _SignInScreenState createState() => _SignInScreenState();
 }
-
 class _SignInScreenState extends State<SignInScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
@@ -21,6 +20,7 @@ class _SignInScreenState extends State<SignInScreen> {
 
   String? appVersion;
   String? platform;
+  bool loading = true; // Track loading state
 
   @override
   void initState() {
@@ -62,6 +62,9 @@ class _SignInScreenState extends State<SignInScreen> {
         );
       }
     }
+    setState(() {
+      loading = false;
+    });
   }
 
   Future<User?> _signInWithGoogle() async {
@@ -125,6 +128,13 @@ class _SignInScreenState extends State<SignInScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (loading) {
+      // Display a loading indicator or blank screen while loading is true
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    
     return Scaffold(
       appBar: AppBar(title: const Text("Sign In with Google")),
       body: Center(

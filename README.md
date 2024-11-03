@@ -6,6 +6,10 @@ Whether you're cooking for yourself, your family, or hosting a dinner party, Men
 Changelog
 
 [v1.8.1]
+user store locally,
+
+
+[v1.8.1]
 web app login integrated,
 added client id in index.html,
 removed proifle photo and name from profile screen,

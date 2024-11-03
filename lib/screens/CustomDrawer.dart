@@ -330,8 +330,8 @@ void _initializeAppInfo() async {
                   context,
                   MaterialPageRoute(
                     builder: (context) => ProfileScreen(
-                      familyId: doc.id,
-                      familyName: doc['familyName'],
+                      // familyId: doc.id,
+                      // familyName: doc['familyName'],
                     ),
                   ),
                 );

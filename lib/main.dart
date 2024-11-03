@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'screens/HomeNavigationBar.dart';
 import 'screens/sign_In_screen.dart';
 
 void main() async {
@@ -48,8 +49,7 @@ class MyApp extends StatelessWidget {
           ),
         ),
       ),
-      home:  SignInScreen(),
-      // home: user == null ? SignInScreen() : HomeNavigationBar(user: user!),
+      home: user == null ? const SignInScreen() : HomeNavigationBar(user: user!),
     );
   }
 }
