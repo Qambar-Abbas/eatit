@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class AppService {
 
@@ -20,8 +21,7 @@ class AppService {
   /// Detects the current platform and returns its name
   static String getPlatform() {
     if (kIsWeb) {
-      // When running on the web, fetch the version from the Android app version directly
-      return 'Web'; // Just returning 'Web' as platform
+      return 'Web'; 
     }
     try {
       if (Platform.isAndroid) return 'Android';
@@ -35,8 +35,6 @@ class AppService {
       return 'Unknown';
     }
   }
-
-
 
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -56,22 +54,35 @@ class AppService {
       return null;
     }
   }
+  
+  /// Create user document in Firestore
+  Future<void> createUserInFirestore(User? user) async {
+    if (user != null) {
+      try {
+        // Create user document with user details
+        await _firestore.collection('users').doc(user.email).set({
+          // 'uid': user.uid,
+          'displayName': user.displayName,
+          'email': user.email,
+          'photoURL': user.photoURL,
+          'createdAt': Timestamp.now(),
+        });
+      } catch (e) {
+        print('Error creating user in Firestore: $e');
+      }
+    }
+  }
 
-  // Future<void> createAccount(
-  //     String uid, String email, String username, String photoURL) async {
-  //   try {
-  //     await _firestore.collection('users').doc(email).set({
-  //       'email': email,
-  //       'username': username,
-  //       'photoURL': photoURL,
-  //       'createdAt': FieldValue.serverTimestamp(),
-  //       'families': [], // List of families the user is part of
-  //     }, SetOptions(merge: true));
-  //   } catch (e) {
-  //     print('Error creating account: $e');
-  //   }
-  // }
+/// Store user details in local storage
+  Future<void> storeUserLocally(User? user) async {
+    if (user != null) {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userEmail', user.email!); // Store user email
+      await prefs.setString('displayName', user.displayName ?? ''); // Optional: store display name
+    }
+  }
 
+  
   Future<void> createFamily(String familyName) async {
     try {
       User? currentUser = _auth.currentUser;
