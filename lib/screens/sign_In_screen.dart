@@ -1,7 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import Firestore package
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/appService.dart';
 import 'HomeNavigationBar.dart';
 
@@ -15,8 +16,9 @@ class SignInScreen extends StatefulWidget {
 class _SignInScreenState extends State<SignInScreen> {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance; // Initialize Firestore instance
-  
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final AppService _appService = AppService();
+
   String? appVersion;
   String? platform;
 
@@ -24,6 +26,7 @@ class _SignInScreenState extends State<SignInScreen> {
   void initState() {
     super.initState();
     _initializeAppInfo();
+    _checkStoredUser(); // Check if a user is already stored locally
   }
 
   /// Initialize app version and platform information
@@ -45,26 +48,48 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
+  /// Check if a user is already stored locally and navigate if so
+  Future<void> _checkStoredUser() async {
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    String? email = prefs.getString('userEmail'); // Retrieve stored email
+
+    if (email != null) {
+      User? user = _auth.currentUser; // Check current Firebase auth state
+      if (user != null && user.email == email) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => HomeNavigationBar(user: user)),
+        );
+      }
+    }
+  }
+
   Future<User?> _signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return null; // User canceled the sign-in
-      
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      if (googleUser == null) return null;
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
-      final UserCredential userCredential = await _auth.signInWithCredential(credential);
-      
-      // Check if user exists in Firestore before creating a new account
-      bool userExists = await _checkUserExists(userCredential.user); // Check user existence
+      final UserCredential userCredential =
+          await _auth.signInWithCredential(credential);
+
+      bool userExists = await _checkUserExists(userCredential.user);
       if (userExists) {
-        return userCredential.user; // User exists, return the user
+        await _appService.storeUserLocally(userCredential.user); // Store user locally
+        return userCredential.user;
       } else {
-        await _createUserInFirestore(userCredential.user); // Create user in Firestore
-        return userCredential.user; // Return the new user
+        await _appService.createUserInFirestore(userCredential.user);
+        await _appService.storeUserLocally(userCredential.user); // Store user locally
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Account Created Successfully")),
+        );
+        return userCredential.user;
       }
     } catch (e) {
       print('Error signing in with Google: $e');
@@ -73,33 +98,12 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   /// Check if the user already exists in Firestore
-  Future<bool> _checkUserExists(User? user) async { // New method to check user existence
+  Future<bool> _checkUserExists(User? user) async {
     if (user != null) {
       final doc = await _firestore.collection('users').doc(user.email).get();
-      return doc.exists; // Return true if the user document exists
+      return doc.exists;
     }
-    return false; // Return false if user is null
-  }
-
-  /// Create user document in Firestore
-  Future<void> _createUserInFirestore(User? user) async { // Updated to include user existence check
-    if (user != null) {
-      try {
-        // Create user document with user details
-        await _firestore.collection('users').doc(user.email).set({
-          'uid': user.uid,
-          'displayName': user.displayName,
-          'email': user.email,
-          'photoURL': user.photoURL,
-          'createdAt': Timestamp.now(),
-        });
-         ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Account Created Successfull")),
-      );
-      } catch (e) {
-        print('Error creating user in Firestore: $e');
-      }
-    }
+    return false;
   }
 
   void _handleSignIn() async {
@@ -110,10 +114,9 @@ class _SignInScreenState extends State<SignInScreen> {
         MaterialPageRoute(builder: (context) => HomeNavigationBar(user: user)),
       );
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Sign In Successfull")),
+        const SnackBar(content: Text("Sign In Successful")),
       );
     } else {
-      // Inform the user that account creation failed or user cancelled
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Failed to sign in or user cancelled.")),
       );
