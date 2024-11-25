@@ -4,6 +4,13 @@ This intuitive app takes the guesswork out of meal planning, helping you decide 
 Whether you're cooking for yourself, your family, or hosting a dinner party, Menu Maestro ensures every meal is a masterpiece.
 
 Changelog
+[v1.8.2]
+code refactor,
+services introduced,
+models introduced,
+unique family code brought back,
+profile screen under construction,
+
 
 [v1.8.1]
 user store locally,

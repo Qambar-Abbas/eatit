@@ -1,17 +1,17 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_polls/flutter_polls.dart';
-import '../services/appService.dart'; // Use AppService instead of UserService
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  final User? user;
+  const SearchScreen({super.key, this.user});
 
   @override
   _SearchScreenState createState() => _SearchScreenState();
 }
 
 class _SearchScreenState extends State<SearchScreen> {
-  final AppService _appService = AppService(); // Create an instance of AppService
+  // final AppService _appService = AppService(); // Create an instance of AppService
   String selectedFood = '';
   Map<String, int> votes = {'Pizza': 0, 'Burger': 0, 'Pasta': 0};
   String userRole = ''; // Variable to store user role
@@ -30,17 +30,17 @@ class _SearchScreenState extends State<SearchScreen> {
       String userId = FirebaseAuth.instance.currentUser!.uid;
 
       // Fetch user data using AppService
-      Map<String, dynamic>? userData = await _appService.getUserData(userId);
+      // Map<String, dynamic>? userData = await _appService.getUserData(userId);
 
-      if (userData != null) {
-        setState(() {
-          userRole = userData['tag'] ?? ''; // Fetch user tag as role
-          familyCode = userData['familyCode']; // Fetch user's family code
-          if (userData.containsKey('selectedDish')) {
-            selectedDish = userData['selectedDish'];
-          }
-        });
-      }
+      // if (userData != null) {
+      //   setState(() {
+      //     userRole = userData['tag'] ?? ''; // Fetch user tag as role
+      //     familyCode = userData['familyCode']; // Fetch user's family code
+      //     if (userData.containsKey('selectedDish')) {
+      //       selectedDish = userData['selectedDish'];
+      //     }
+      //   });
+      // }
     } catch (e) {
       print('Error fetching user data: $e');
     }
