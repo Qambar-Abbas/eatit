@@ -1,10 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'screens/sign_In_screen.dart';
+import 'ui/homeNavigationBar.dart';
+import 'ui/signInScreen.dart';
+import 'ui/theme.dart';
+import 'services/userService.dart';
+import 'models/userModel.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+Future<void> initializeFirebase() async {
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: "AIzaSyClNt-wD3h2hH7-d9Z8VvOy8LUDneJMKXY",
@@ -13,43 +16,36 @@ void main() async {
       projectId: "eatit-f68fb",
     ),
   );
+}
 
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await initializeFirebase();
   final firebaseUser = FirebaseAuth.instance.currentUser;
 
-  runApp(MyApp(user: firebaseUser));
+  UserModel? userData;
+  if (firebaseUser != null) {
+    userData = await UserService().getCachedUserData() ??
+        await UserService().getUserData(firebaseUser.email!);
+  }
+
+  runApp(MyApp(user: firebaseUser, userData: userData));
 }
 
 class MyApp extends StatelessWidget {
   final User? user;
+  final UserModel? userData;
 
-  const MyApp({super.key, this.user});
+  const MyApp({super.key, this.user, this.userData});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Khane me kya hai',
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: const ColorScheme(
-          brightness: Brightness.light,
-          primary: Colors.black,
-          onPrimary: Colors.white,
-          secondary: Colors.white,
-          onSecondary: Colors.black,  
-          error: Colors.red,
-          onError: Colors.redAccent,
-          surface: Colors.white,
-          onSurface: Colors.black,
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            foregroundColor: Colors.white,
-            backgroundColor: Colors.black,
-          ),
-        ),
-      ),
-      home:  SignInScreen(),
-      // home: user == null ? SignInScreen() : HomeNavigationBar(user: user!),
+      title: 'Eat-It',
+      theme: appTheme,
+      home: user == null
+          ? const SignInScreen()
+          : HomeNavigationBar(user: user),
     );
   }
 }

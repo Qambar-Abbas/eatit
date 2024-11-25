@@ -3,8 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key});
 
+  const ChatScreen({super.key, User? user, Map<String, dynamic>? userData});
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
