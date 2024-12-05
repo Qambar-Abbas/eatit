@@ -1,10 +1,10 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:eatit/services/userService.dart'; // Import UserService
 import 'ui/homeNavigationBar.dart';
 import 'ui/signInScreen.dart';
 import 'ui/theme.dart';
-import 'services/userService.dart';
 import 'models/userModel.dart';
 
 Future<void> initializeFirebase() async {
@@ -21,31 +21,27 @@ Future<void> initializeFirebase() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeFirebase();
-  final firebaseUser = FirebaseAuth.instance.currentUser;
 
-  UserModel? userData;
-  if (firebaseUser != null) {
-    userData = await UserService().getCachedUserData() ??
-        await UserService().getUserData(firebaseUser.email!);
-  }
+  // Load cached user data using UserService
+  UserModel? cachedUser = await UserService().loadCachedUserData();
 
-  runApp(MyApp(user: firebaseUser, userData: userData));
+  // Run the app, passing the loaded user data
+  runApp(MyApp(userData: cachedUser));
 }
 
 class MyApp extends StatelessWidget {
-  final User? user;
   final UserModel? userData;
 
-  const MyApp({super.key, this.user, this.userData});
+  const MyApp({super.key, this.userData});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Eat-It',
       theme: appTheme,
-      home: user == null
+      home: userData == null
           ? const SignInScreen()
-          : HomeNavigationBar(user: user),
+          : HomeNavigationBar(user: FirebaseAuth.instance.currentUser),
     );
   }
 }

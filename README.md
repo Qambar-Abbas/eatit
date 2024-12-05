@@ -4,6 +4,10 @@ This intuitive app takes the guesswork out of meal planning, helping you decide 
 Whether you're cooking for yourself, your family, or hosting a dinner party, Menu Maestro ensures every meal is a masterpiece.
 
 Changelog
+[v1.8.3]
+To Change the delete account method such that it also remove the user from family and deletes the users own family,
+
+
 [v1.8.2]
 code refactor,
 services introduced,
