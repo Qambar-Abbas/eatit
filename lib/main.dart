@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:eatit/services/userService.dart'; // Import UserService
+import 'package:eatit/services/userService.dart';
 import 'ui/homeNavigationBar.dart';
 import 'ui/signInScreen.dart';
 import 'ui/theme.dart';
@@ -17,15 +17,12 @@ Future<void> initializeFirebase() async {
     ),
   );
 }
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeFirebase();
 
-  // Load cached user data using UserService
   UserModel? cachedUser = await UserService().loadCachedUserData();
 
-  // Run the app, passing the loaded user data
   runApp(MyApp(userData: cachedUser));
 }
 

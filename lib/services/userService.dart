@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -30,16 +31,24 @@ class UserService {
   }
 
   Future<String?> convertProfileImage(String imageUrl) async {
-    try {
-      if (imageUrl.isEmpty) return null;
-      http.Response response = await http.get(Uri.parse(imageUrl));
+  try {
+    if (imageUrl.isEmpty) return null;
+
+    final response = await http.get(Uri.parse(imageUrl));
+
+    // Check if the response is successful
+    if (response.statusCode == 200) {
       final bytes = response.bodyBytes;
       return bytes.isNotEmpty ? base64Encode(bytes) : null;
-    } catch (e) {
-      print('Error fetching or converting image: $e');
+    } else {
+      print('Failed to load image: ${response.statusCode}');
       return null;
     }
+  } catch (e) {
+    print('Error fetching or converting image: $e');
+    return null;
   }
+}
 
   Future<void> updateFamilyList(String userEmail, String familyCode) async {
     try {
@@ -128,41 +137,45 @@ class UserService {
   }
 
   Future<void> deleteUserAccount(String email) async {
-    try {
-      QuerySnapshot familiesSnapshot = await _firestore
-          .collection('families')
-          .where('members', arrayContains: email)
-          .get();
+  try {
+    // Fetch families where the user is a member
+    QuerySnapshot memberFamiliesSnapshot = await _firestore
+        .collection('families')
+        .where('members.$email', isNull: false)
+        .get();
 
-      for (var familyDoc in familiesSnapshot.docs) {
-        String familyCode = familyDoc.id;
-
-        await FamilyService().removeMember(familyCode, email);
-      }
-
-      QuerySnapshot adminFamilySnapshot = await _firestore
-          .collection('families')
-          .where('adminEmail', isEqualTo: email)
-          .get();
-
-      if (adminFamilySnapshot.docs.isNotEmpty) {
-        String adminFamilyCode = adminFamilySnapshot.docs.first.id;
-        await _firestore.collection('families').doc(adminFamilyCode).delete();
-        print('Admin family deleted.');
-      }
-
-      await _firestore.collection('users').doc(email).delete();
-      print('User account deleted successfully.');
-
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.remove('userEmail');
-      await prefs.remove('displayName');
-      await prefs.remove('userData');
-    } catch (e) {
-      print('Error deleting user account: $e');
-      throw e;
+    // Remove the user from all families they joined
+    for (var familyDoc in memberFamiliesSnapshot.docs) {
+      String familyCode = familyDoc.id;
+      await FamilyService().removeMember(familyCode, email);
     }
+
+    // Check if the user is an admin of any family and delete those families
+    QuerySnapshot adminFamilySnapshot = await _firestore
+        .collection('families')
+        .where('adminEmail', isEqualTo: email)
+        .get();
+
+    for (var adminFamilyDoc in adminFamilySnapshot.docs) {
+      String adminFamilyCode = adminFamilyDoc.id;
+      await _firestore.collection('families').doc(adminFamilyCode).delete();
+      print('Deleted admin family: $adminFamilyCode.');
+    }
+
+    // Delete the user document from Firestore
+    await _firestore.collection('users').doc(email).delete();
+    print('User account deleted successfully.');
+
+    // Clear user data from local storage
+    SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove('userEmail');
+    await prefs.remove('displayName');
+    await prefs.remove('userData');
+  } catch (e) {
+    print('Error deleting user account: $e');
+    throw e;
   }
+}
 
   Future<void> updateUserInFireBase(
       String generatedFamilyCode, UserModel user) async {

@@ -4,7 +4,7 @@ class FamilyModel {
   String familyName;
   String adminEmail;
   String familyCode;
-  Map<String, String> members; // Updated to use a Map for email-name pairs
+  Map<String, String> members; 
 
   FamilyModel({
     required this.familyName,
@@ -13,24 +13,24 @@ class FamilyModel {
     required this.members,
   });
 
-  // Factory constructor to create FamilyModel from Firestore document
+  
   factory FamilyModel.fromDocument(DocumentSnapshot doc) {
     Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
     return FamilyModel(
       familyName: data['familyName'] ?? '',
       adminEmail: data['adminEmail'] ?? '',
       familyCode: doc.id,
-      members: Map<String, String>.from(data['members'] ?? {}), // Parse Map from Firestore data
+      members: Map<String, String>.from(data['members'] ?? {}), 
     );
   }
 
-  // Convert FamilyModel to Map for storing in Firestore
+  
   Map<String, dynamic> toMap() {
     return {
       'familyName': familyName,
       'adminEmail': adminEmail,
       'familyCode': familyCode,
-      'members': members, // Save as Map<String, String>
+      'members': members, 
     };
   }
 }

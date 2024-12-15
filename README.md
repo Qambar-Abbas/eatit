@@ -5,7 +5,8 @@ Whether you're cooking for yourself, your family, or hosting a dinner party, Men
 
 Changelog
 [v1.8.3]
-To Change the delete account method such that it also remove the user from family and deletes the users own family,
+Icons Added: Drawer,
+Family List Working,
 
 
 [v1.8.2]
