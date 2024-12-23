@@ -55,10 +55,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _currentUser = FirebaseAuth.instance.currentUser;
       if (_currentUser != null) {
         _userModel = await UserService().getUserData(_currentUser!.email!);
-        _adminFamily = await FamilyService().getFamilyData(_currentUser!.email!);
+        _adminFamily =
+            await FamilyService().getFamilyData(_currentUser!.email!);
 
         if (_userModel?.familyList?.isNotEmpty ?? false) {
-          _userFamilies = await FamilyService().getUserFamilies(_userModel!.familyList!);
+          _userFamilies =
+              await FamilyService().getUserFamilies(_userModel!.familyList!);
         }
       }
     } catch (e) {
@@ -172,58 +174,57 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Profile')),
       endDrawer: Drawer(
-  child: Padding(
-    padding: const EdgeInsets.all(16.0),
-    child: Column(
-      children: [
-        ElevatedButton.icon(
-          onPressed: _createFamily,
-          icon: const Icon(Icons.group_add),
-          label: const Text('Create My Family'),
-        ),
-        const SizedBox(height: 20),
-        const Divider(),
-        const SizedBox(height: 10),
-        const Text(
-          'Join other\'s Family',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _familyCodeController,
-          decoration: const InputDecoration(
-            labelText: 'Enter Family Code',
-            border: OutlineInputBorder(),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            children: [
+              ElevatedButton.icon(
+                onPressed: _createFamily,
+                icon: const Icon(Icons.group_add),
+                label: const Text('Create My Family'),
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 10),
+              const Text(
+                'Join other\'s Family',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _familyCodeController,
+                decoration: const InputDecoration(
+                  labelText: 'Enter Family Code',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                onPressed: _joinFamily,
+                icon: const Icon(Icons.login),
+                label: const Text('Join Family'),
+              ),
+              const SizedBox(height: 20),
+              const Divider(),
+              const SizedBox(height: 10),
+              ElevatedButton.icon(
+                onPressed: _logout,
+                icon: const Icon(Icons.exit_to_app),
+                label: const Text('Logout'),
+              ),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
+                onPressed: _deleteUserAccount,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                icon: const Icon(Icons.delete),
+                label: const Text('Delete Account'),
+              ),
+              const Spacer(),
+              Text('Version: $appVersion | Platform: $platform'),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
-        ElevatedButton.icon(
-          onPressed: _joinFamily,
-          icon: const Icon(Icons.login),
-          label: const Text('Join Family'),
-        ),
-        const SizedBox(height: 20),
-        const Divider(),
-        const SizedBox(height: 10),
-        ElevatedButton.icon(
-          onPressed: _logout,
-          icon: const Icon(Icons.exit_to_app),
-          label: const Text('Logout'),
-        ),
-        const SizedBox(height: 20),
-        ElevatedButton.icon(
-          onPressed: _deleteUserAccount,
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-          icon: const Icon(Icons.delete),
-          label: const Text('Delete Account'),
-        ),
-        const Spacer(),
-        Text('Version: $appVersion | Platform: $platform'),
-      ],
-    ),
-  ),
-),
-
+      ),
       body: loading
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
@@ -240,46 +241,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
-  return Column(
-    children: [
-      CircleAvatar(
-        radius: 50,
-        backgroundColor: Colors.grey.shade300,
-        child: _isValidBase64(_userModel?.profileImageBase64)
-            ? ClipOval(
-                child: Image.memory(
-                  base64Decode(_userModel!.profileImageBase64!),
-                  width: 100,
-                  height: 100,
-                  fit: BoxFit.cover,
-                ),
-              )
-            : const Icon(Icons.person, size: 50, color: Colors.white),
-      ),
-      const SizedBox(height: 10),
-      Text(
-        _currentUser?.displayName ?? 'No Name',
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-      ),
-      Text(
-        'Email: ${_currentUser?.email}',
-        style: const TextStyle(fontSize: 14),
-      ),
-    ],
-  );
-}
-
-bool _isValidBase64(String? base64String) {
-  if (base64String == null || base64String.isEmpty) return false;
-  try {
-    base64Decode(base64String);
-    return true;
-  } catch (e) {
-    print('Invalid Base64 string: $e');
-    return false;
+    return Column(
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: Colors.grey.shade300,
+          child: _isValidBase64(_userModel?.profileImageBase64)
+              ? ClipOval(
+                  child: Image.memory(
+                    base64Decode(_userModel!.profileImageBase64!),
+                    width: 100,
+                    height: 100,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              : const Icon(Icons.person, size: 50, color: Colors.white),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          _currentUser?.displayName ?? 'No Name',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          'Email: ${_currentUser?.email}',
+          style: const TextStyle(fontSize: 14),
+        ),
+      ],
+    );
   }
-}
 
+  bool _isValidBase64(String? base64String) {
+    if (base64String == null || base64String.isEmpty) return false;
+    try {
+      base64Decode(base64String);
+      return true;
+    } catch (e) {
+      print('Invalid Base64 string: $e');
+      return false;
+    }
+  }
 
   Widget _buildFamilyDetails() {
     final widgets = <Widget>[];
@@ -297,24 +297,98 @@ bool _isValidBase64(String? base64String) {
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
-              TextField(
-                controller: TextEditingController(text: _adminFamily!.familyCode),
-                readOnly: true,
-                decoration: InputDecoration(
-                  labelText: 'Family Code',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.copy),
-                    onPressed: () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: _adminFamily!.familyCode),
-                      );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Family code copied to clipboard!')),
-                      );
+              FutureBuilder<String>(
+                future: FamilyService().getFamilyCode(_adminFamily!.familyCode),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const CircularProgressIndicator();
+                  } else if (snapshot.hasError) {
+                    return Text('Error: ${snapshot.error}');
+                  } else {
+                    return TextField(
+                      controller: TextEditingController(text: snapshot.data),
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: 'Family Code',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.copy),
+                          onPressed: () async {
+                            await Clipboard.setData(
+                              ClipboardData(text: snapshot.data!),
+                            );
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content:
+                                      Text('Family code copied to clipboard!')),
+                            );
+                          },
+                        ),
+                      ),
+                    );
+                  }
+                },
+              ),
+
+              // TextField(
+              //   controller: TextEditingController(text: _adminFamily!.familyCode),
+              //   readOnly: true,
+              //   decoration: InputDecoration(
+              //     labelText: 'Family Code',
+              //     border: const OutlineInputBorder(),
+              //     suffixIcon: IconButton(
+              //       icon: const Icon(Icons.copy),
+              //       onPressed: () async {
+              //         await Clipboard.setData(
+              //           ClipboardData(text: _adminFamily!.familyCode),
+              //         );
+              //         ScaffoldMessenger.of(context).showSnackBar(
+              //           const SnackBar(content: Text('Family code copied to clipboard!')),
+              //         );
+              //       },
+              //     ),
+              //   ),
+              // ),
+              const SizedBox(height: 20),
+              const Text(
+                'Assign Cook Role:',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              ListView(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                children: _adminFamily!.members.entries.map((entry) {
+                  final email = entry.key;
+                  final name = entry.value;
+                  final isCook = _adminFamily!.cook == email;
+
+                  return ListTile(
+                    title: Text(name),
+                    subtitle: Text(email),
+                    trailing: isCook
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : null,
+                    onTap: () async {
+                      try {
+                        await FamilyService()
+                            .assignCook(_adminFamily!.familyCode, email);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content: Text(
+                                  '$name has been assigned the cook role.')),
+                        );
+                        setState(() {
+                          _adminFamily!.cook = email;
+                        });
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to assign cook: $e')),
+                        );
+                      }
                     },
-                  ),
-                ),
+                  );
+                }).toList(),
               ),
             ],
           ),
@@ -344,6 +418,20 @@ bool _isValidBase64(String? base64String) {
       );
     }
 
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+    return Column(
+        crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+  }
+
+  Future<void> _assignCook(String email) async {
+    try {
+      // Update the cook in the family model
+      _adminFamily?.cook = email;
+      // Save the updated family model to Firestore
+      await FamilyService().updateFamilyCook(_adminFamily!.familyCode, email);
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to assign cook: $e')),
+      );
+    }
   }
 }
