@@ -3,8 +3,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class ChatScreen extends StatefulWidget {
+  const ChatScreen({super.key});
 
-  const ChatScreen({super.key, User? user, Map<String, dynamic>? userData});
   @override
   _ChatScreenState createState() => _ChatScreenState();
 }
@@ -12,6 +12,9 @@ class ChatScreen extends StatefulWidget {
 class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   late Future<Map<String, dynamic>?> _userFuture;
+  String? _selectedFamily;
+  List<Map<String, dynamic>> _families = [];
+  final String _currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
   void initState() {
@@ -22,23 +25,49 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<Map<String, dynamic>?> _fetchUserDetails() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+      final doc = await FirebaseFirestore.instance.collection('users').doc(user.email).get();
       if (doc.exists) {
-        return doc.data(); // Return the raw Firestore document data
+        final userData = doc.data();
+        await _fetchUserFamilies(userData?['familyList'] as List<dynamic>?);
+        return userData;
       }
     }
     return null;
   }
 
+  Future<void> _fetchUserFamilies(List<dynamic>? familyList) async {
+    if (familyList != null) {
+      List<Map<String, dynamic>> families = [];
+      for (String familyCode in familyList) {
+        final familyDoc = await FirebaseFirestore.instance.collection('families').doc(familyCode).get();
+        if (familyDoc.exists) {
+          families.add({
+            'familyCode': familyCode,
+            ...familyDoc.data()!,
+          });
+        }
+      }
+      setState(() {
+        _families = families;
+        if (_families.isNotEmpty) {
+          _selectedFamily = _families.first['familyCode'];
+        }
+      });
+    }
+  }
+
   Future<void> _sendMessage() async {
     try {
       final user = await _userFuture;
-      if (user != null) {
+      if (user != null && _selectedFamily != null) {
         final message = _messageController.text.trim();
         if (message.isNotEmpty) {
-          // Ensure user data is accessed safely
-          await FirebaseFirestore.instance.collection('messages').add({
-            'uid': user['uid'] ?? '',
+          await FirebaseFirestore.instance
+              .collection('families')
+              .doc(_selectedFamily)
+              .collection('messages')
+              .add({
+            'uid': _currentUserId,
             'email': user['email'] ?? '',
             'displayName': user['displayName'] ?? '',
             'photoURL': user['photoURL'] ?? '',
@@ -49,48 +78,111 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
     } catch (e) {
-      print('Error sending message: $e'); // Print error to console
+      print('Error sending message: $e');
     }
+  }
+
+  Widget _buildMessage(Map<String, dynamic> messageData, bool isSender) {
+    return Align(
+      alignment: isSender ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 5, horizontal: 10),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isSender ? Colors.blue.shade100 : Colors.grey.shade200,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(12),
+            topRight: const Radius.circular(12),
+            bottomLeft: isSender ? const Radius.circular(12) : Radius.zero,
+            bottomRight: isSender ? Radius.zero : const Radius.circular(12),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment:
+              isSender ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (!isSender)
+              Text(
+                messageData['displayName'] ?? 'No name',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
+            const SizedBox(height: 5),
+            Text(
+              messageData['message'] ?? 'No message',
+              style: const TextStyle(fontSize: 16),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chat Screen'),
+        title: const Text('Family Chat'),
       ),
       body: Column(
         children: <Widget>[
-          Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-              stream: FirebaseFirestore.instance.collection('messages').orderBy('timestamp', descending: true).snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                  return const Center(child: Text('No messages yet'));
-                }
-                final messages = snapshot.data!.docs;
-                return ListView.builder(
-                  reverse: true,
-                  itemCount: messages.length,
-                  itemBuilder: (context, index) {
-                    final message = messages[index].data() as Map<String, dynamic>;
-                    return ListTile(
-                      leading: CircleAvatar(
-                        backgroundImage: NetworkImage(message['photoURL'] ?? ''),
-                      ),
-                      title: Text(message['displayName'] ?? 'No name'),
-                      subtitle: Text(message['message'] ?? 'No message'),
-                      trailing: Text(
-                        (message['timestamp'] as Timestamp?)?.toDate().toLocal().toString() ?? 'No timestamp',
-                      ),
-                    );
-                  },
-                );
-              },
+          Padding(
+            padding: const EdgeInsets.all(8.0),
+            child: Row(
+              children: [
+                const Text('Select Family:'),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButton<String>(
+                    value: _selectedFamily,
+                    items: _families
+                        .map((family) => DropdownMenuItem<String>(
+                              value: family['familyCode'],
+                              child: Text(family['familyName'] ?? 'Unnamed Family'),
+                            ))
+                        .toList(),
+                    onChanged: (value) {
+                      setState(() {
+                        _selectedFamily = value;
+                      });
+                    },
+                    isExpanded: true,
+                  ),
+                ),
+              ],
             ),
+          ),
+          Expanded(
+            child: _selectedFamily == null
+                ? const Center(child: Text('No family selected.'))
+                : StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('families')
+                        .doc(_selectedFamily)
+                        .collection('messages')
+                        .orderBy('timestamp', descending: true)
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                      if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                        return const Center(child: Text('No messages yet.'));
+                      }
+                      final messages = snapshot.data!.docs;
+                      return ListView.builder(
+                        reverse: true,
+                        itemCount: messages.length,
+                        itemBuilder: (context, index) {
+                          final message = messages[index].data() as Map<String, dynamic>;
+                          final isSender = message['uid'] == _currentUserId;
+                          return _buildMessage(message, isSender);
+                        },
+                      );
+                    },
+                  ),
           ),
           Padding(
             padding: const EdgeInsets.all(8.0),
