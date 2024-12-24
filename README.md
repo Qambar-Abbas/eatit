@@ -7,8 +7,10 @@ Changelog:
 [v1.8.4]
 cook assignment working,
 chat screen working,
+chats added to firstore,
 families in list,
 members in list,
+
 
 [v1.8.3]
 Icons Added: Drawer,
