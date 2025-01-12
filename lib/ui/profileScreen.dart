@@ -10,6 +10,8 @@ import 'package:eatit/models/userModel.dart';
 import 'signInScreen.dart';
 
 class ProfileScreen extends StatefulWidget {
+  const ProfileScreen({super.key});
+
   @override
   _ProfileScreenState createState() => _ProfileScreenState();
 }
@@ -109,6 +111,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (confirmDelete == true) {
       try {
         await UserService().deleteUserAccount(_currentUser!.email!);
+        // call remove member function here
+
         await _currentUser!.delete();
         await _logout();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -180,17 +184,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
             children: [
               ElevatedButton.icon(
                 onPressed: _createFamily,
-                icon: const Icon(Icons.group_add),
+                icon: const Icon(Icons.group_add, color: Colors.white),
                 label: const Text('Create My Family'),
               ),
               const SizedBox(height: 20),
               const Divider(),
-              const SizedBox(height: 10),
               const Text(
                 'Join other\'s Family',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
               TextField(
                 controller: _familyCodeController,
                 decoration: const InputDecoration(
@@ -201,22 +203,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 10),
               ElevatedButton.icon(
                 onPressed: _joinFamily,
-                icon: const Icon(Icons.login),
+                icon: const Icon(Icons.login, color: Colors.white),
                 label: const Text('Join Family'),
               ),
-              const SizedBox(height: 20),
               const Divider(),
               const SizedBox(height: 10),
               ElevatedButton.icon(
                 onPressed: _logout,
-                icon: const Icon(Icons.exit_to_app),
+                icon: const Icon(Icons.exit_to_app, color: Colors.white),
                 label: const Text('Logout'),
               ),
               const SizedBox(height: 20),
               ElevatedButton.icon(
                 onPressed: _deleteUserAccount,
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                icon: const Icon(Icons.delete),
+                icon: const Icon(Icons.delete, color: Colors.white),
                 label: const Text('Delete Account'),
               ),
               const Spacer(),
@@ -329,29 +330,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   }
                 },
               ),
-
-              // TextField(
-              //   controller: TextEditingController(text: _adminFamily!.familyCode),
-              //   readOnly: true,
-              //   decoration: InputDecoration(
-              //     labelText: 'Family Code',
-              //     border: const OutlineInputBorder(),
-              //     suffixIcon: IconButton(
-              //       icon: const Icon(Icons.copy),
-              //       onPressed: () async {
-              //         await Clipboard.setData(
-              //           ClipboardData(text: _adminFamily!.familyCode),
-              //         );
-              //         ScaffoldMessenger.of(context).showSnackBar(
-              //           const SnackBar(content: Text('Family code copied to clipboard!')),
-              //         );
-              //       },
-              //     ),
-              //   ),
-              // ),
               const SizedBox(height: 20),
               const Text(
-                'Assign Cook Role:',
+                'Family Members:',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 10),
@@ -364,29 +345,140 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   final isCook = _adminFamily!.cook == email;
 
                   return ListTile(
-                    title: Text(name),
+                    title: Row(
+                      children: [
+                        Text(name),
+                        if (isCook) const SizedBox(width: 8),
+                        if (isCook)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Cook',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                     subtitle: Text(email),
-                    trailing: isCook
-                        ? const Icon(Icons.check_circle, color: Colors.green)
-                        : null,
-                    onTap: () async {
-                      try {
-                        await FamilyService()
-                            .assignCook(_adminFamily!.familyCode, email);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text(
-                                  '$name has been assigned the cook role.')),
-                        );
-                        setState(() {
-                          _adminFamily!.cook = email;
-                        });
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Failed to assign cook: $e')),
-                        );
-                      }
-                    },
+                    trailing: email == _adminFamily!.adminEmail
+                        ? const Text(
+                            'Admin',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.remove_circle,
+                                    color: Colors.red),
+                                onPressed: () async {
+                                  final confirmRemove = await showDialog<bool>(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      title: const Text('Remove Member'),
+                                      content: Text(
+                                        'Are you sure you want to remove $name from the family?',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(false),
+                                          child: const Text('Cancel'),
+                                        ),
+                                        TextButton(
+                                          onPressed: () =>
+                                              Navigator.of(context).pop(true),
+                                          child: const Text(
+                                            'Remove',
+                                            style: TextStyle(color: Colors.red),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+
+                                  if (confirmRemove == true) {
+                                    try {
+                                      await FamilyService().removeMember(
+                                          _adminFamily!.familyCode, email);
+                                      setState(() {
+                                        _adminFamily!.members.remove(email);
+                                      });
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text(
+                                                '$name has been removed from the family.')),
+                                      );
+                                    } catch (e) {
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text(
+                                                'Failed to remove member: $e')),
+                                      );
+                                    }
+                                  }
+                                },
+                              ),
+                              IconButton(
+                                icon: isCook
+                                    ? const Icon(Icons.check_circle,
+                                        color: Colors.green)
+                                    : const Icon(Icons.local_dining,
+                                        color: Colors.grey),
+                                onPressed: () async {
+                                  try {
+                                    if (isCook) {
+                                      // Remove cook role
+                                      await FamilyService().assignCook(
+                                          _adminFamily!.familyCode, '');
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text(
+                                                '$name is no longer the cook.')),
+                                      );
+                                      setState(() {
+                                        _adminFamily!.cook = null;
+                                      });
+                                    } else {
+                                      // Assign cook role
+                                      await FamilyService().assignCook(
+                                          _adminFamily!.familyCode, email);
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                            content: Text(
+                                                '$name has been assigned the cook role.')),
+                                      );
+                                      setState(() {
+                                        _adminFamily!.cook = email;
+                                      });
+                                    }
+                                  } catch (e) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                          content: Text(
+                                              'Failed to update cook role: $e')),
+                                    );
+                                  }
+                                },
+                              ),
+                            ],
+                          ),
                   );
                 }).toList(),
               ),
@@ -408,9 +500,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 children: family.members.entries.map((entry) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Text('- ${entry.value} (${entry.key})'),
+                  final email = entry.key;
+                  final name = entry.value;
+                  final isCook = family.cook == email;
+
+                  return ListTile(
+                    title: Row(
+                      children: [
+                        Text(name),
+                        if (isCook) const SizedBox(width: 8),
+                        if (isCook)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Cook',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                    subtitle: Text(email),
                   );
                 }).toList(),
               ),
@@ -420,18 +538,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
     return Column(
         crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
-  }
-
-  Future<void> _assignCook(String email) async {
-    try {
-      // Update the cook in the family model
-      _adminFamily?.cook = email;
-      // Save the updated family model to Firestore
-      await FamilyService().updateFamilyCook(_adminFamily!.familyCode, email);
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to assign cook: $e')),
-      );
-    }
   }
 }
