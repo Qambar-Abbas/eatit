@@ -4,6 +4,20 @@ This intuitive app takes the guesswork out of meal planning, helping you decide 
 Whether you're cooking for yourself, your family, or hosting a dinner party, Menu Maestro ensures every meal is a masterpiece.
 
 Changelog:
+
+
+[v1.8.5]
+Flutter upgrade, Done
+Show cook in member list, Done
+Remove cook tag function, Done
+Show cook in family members list, Done
+Delete account funtion also removes admin family, Done
+Remove member function, 
+Show select family at food search and chat room,
+fix profile photo,
+family list is retained in the users collecting after removing member.
+
+
 [v1.8.4]
 cook assignment working,
 chat screen working,
