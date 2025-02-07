@@ -153,4 +153,95 @@ class FamilyService {
       rethrow;
     }
   }
+
+
+// food service
+
+Future<void> createWeeklyMenu(String familyCode) async {
+  try {
+    // Create an empty weekly menu structure
+    Map<String, List<String>> emptyMenu = {
+      'Monday': [],
+      'Tuesday': [],
+      'Wednesday': [],
+      'Thursday': [],
+      'Friday': [],
+      'Saturday': [],
+      'Sunday': [],
+    };
+
+    // Update the family document in Firebase with the new menu
+    await _familiesCollection.doc(familyCode).update({
+      'foodMenu': emptyMenu,
+    });
+
+    print('Weekly menu created successfully for family $familyCode.');
+  } catch (e) {
+    print('Error creating weekly menu: $e');
+    rethrow;
+  }
+}
+Future<void> updateWeeklyMenu(
+  String familyCode,
+  String day,
+  List<String> lunchItems,
+  List<String> dinnerItems,
+) async {
+  try {
+    // Fetch the current family document
+    DocumentSnapshot familySnapshot = await _familiesCollection.doc(familyCode).get();
+
+    if (familySnapshot.exists) {
+      // Get the current foodMenu from the document
+      Map<String, dynamic>? currentMenu = familySnapshot['foodMenu'];
+
+      // If no menu exists, initialize an empty one
+      currentMenu ??= {
+          'Monday': [],
+          'Tuesday': [],
+          'Wednesday': [],
+          'Thursday': [],
+          'Friday': [],
+          'Saturday': [],
+          'Sunday': [],
+        };
+
+      // Update the menu for the specified day
+      currentMenu[day] = {
+        'lunchItems': lunchItems,
+        'dinnerItems': dinnerItems,
+      };
+
+      // Update the family document in Firebase
+      await _familiesCollection.doc(familyCode).update({
+        'foodMenu': currentMenu,
+      });
+
+      print('Weekly menu updated successfully for family $familyCode on $day.');
+    } else {
+      throw Exception('Family with the provided code does not exist.');
+    }
+  } catch (e) {
+    print('Error updating weekly menu: $e');
+    rethrow;
+  }
+}
+
+Future<Map<String, dynamic>?> getWeeklyMenu(String familyCode) async {
+  try {
+    DocumentSnapshot familySnapshot = await _familiesCollection.doc(familyCode).get();
+
+    if (familySnapshot.exists) {
+      // Get the foodMenu from the document
+      Map<String, dynamic>? menu = familySnapshot['foodMenu'];
+      return menu;
+    } else {
+      throw Exception('Family with the provided code does not exist.');
+    }
+  } catch (e) {
+    print('Error fetching weekly menu: $e');
+    rethrow;
+  }
+}
+
 }
