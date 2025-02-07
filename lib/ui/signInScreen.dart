@@ -50,72 +50,75 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  Future<User?> _signInWithGoogle() async {
-    try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+Future<User?> _signInWithGoogle() async {
+  try {
+    // Sign out from GoogleSignIn to force account selection
+    await _googleSignIn.signOut();
 
-      if (googleUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign-in canceled')),
-        );
-        return null;
-      }
+    final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+    if (googleUser == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Sign-in canceled')),
       );
+      return null;
+    }
 
-      final UserCredential userCredential = await _auth.signInWithCredential(credential);
-      final user = userCredential.user;
+    final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+    final OAuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
 
-      if (user == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Sign-in failed, please try again.')),
-        );
-        return null;
-      }
+    final UserCredential userCredential = await _auth.signInWithCredential(credential);
+    final user = userCredential.user;
 
-      final bool userExists = await _firestoreService.checkUserExists(user) ?? false;
-
-      if (userExists) {
-        final proceed = await _showConfirmationDialog(
-          title: 'Existing Account',
-          content: 'Do you want to continue with your existing account?',
-        );
-
-        if (proceed) {
-          await _userService.storeUserLocally(user);
-          return user;
-        } else {
-          return null; // User canceled
-        }
-      } else {
-        final createAccount = await _showConfirmationDialog(
-          title: 'Create New Account',
-          content: 'This account does not exist. Do you want to create a new account?',
-        );
-
-        if (createAccount) {
-          await _userService.createUserInFirestore(user); // Create new account
-          await _userService.storeUserLocally(user);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Account Created Successfully')),
-          );
-          return user;
-        } else {
-          return null; // User canceled account creation
-        }
-      }
-    } catch (e) {
-      print('Error signing in with Google: $e');
+    if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Sign-in failed, please try again.')),
       );
       return null;
     }
+
+    final bool userExists = await _firestoreService.checkUserExists(user);
+
+    if (userExists) {
+      final proceed = await _showConfirmationDialog(
+        title: 'Existing Account',
+        content: 'Do you want to continue with your existing account?',
+      );
+
+      if (proceed) {
+        await _userService.storeUserLocally(user);
+        return user;
+      } else {
+        return null; // User canceled
+      }
+    } else {
+      final createAccount = await _showConfirmationDialog(
+        title: 'Create New Account',
+        content: 'This account does not exist. Do you want to create a new account?',
+      );
+
+      if (createAccount) {
+        await _userService.createUserInFirestore(user); // Create new account
+        await _userService.storeUserLocally(user);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Account Created Successfully')),
+        );
+        return user;
+      } else {
+        return null; // User canceled account creation
+      }
+    }
+  } catch (e) {
+    print('Error signing in with Google: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Sign-in failed, please try again.')),
+    );
+    return null;
   }
+}
 
   Future<bool> _showConfirmationDialog({required String title, required String content}) async {
     return await showDialog<bool>(

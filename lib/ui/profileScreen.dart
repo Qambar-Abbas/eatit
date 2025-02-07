@@ -73,19 +73,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
       setState(() => loading = false);
     }
   }
+Future<void> _logout() async {
+  try {
+  
+    // Sign out from FirebaseAuth
+    await FirebaseAuth.instance.signOut();
 
-  Future<void> _logout() async {
-    try {
-      await FirebaseAuth.instance.signOut();
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const SignInScreen()),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Logout failed: $e')),
-      );
-    }
+    // Navigate to the SignInScreen
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const SignInScreen()),
+    );
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Logout failed: $e')),
+    );
   }
+}
+
 
   Future<void> _deleteUserAccount() async {
     final confirmDelete = await showDialog<bool>(
@@ -132,7 +136,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         familyName: "${_currentUser?.displayName ?? 'No Name'}'s Family",
         adminEmail: _currentUser!.email!,
         familyCode: '',
-        members: {_userModel!.email!: _userModel!.displayName ?? 'No Name'},
+        members: {_userModel!.email!: _userModel!.displayName ?? 'No Name'}, foodMenu: {},
       );
       await FamilyService().createFamily(family, _userModel!);
       ScaffoldMessenger.of(context).showSnackBar(
@@ -242,34 +246,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildProfileHeader() {
-    return Column(
-      children: [
-        CircleAvatar(
-          radius: 50,
-          backgroundColor: Colors.grey.shade300,
-          child: _isValidBase64(_userModel?.profileImageBase64)
-              ? ClipOval(
-                  child: Image.memory(
-                    base64Decode(_userModel!.profileImageBase64!),
-                    width: 100,
-                    height: 100,
-                    fit: BoxFit.cover,
-                  ),
-                )
-              : const Icon(Icons.person, size: 50, color: Colors.white),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          _currentUser?.displayName ?? 'No Name',
-          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        Text(
-          'Email: ${_currentUser?.email}',
-          style: const TextStyle(fontSize: 14),
-        ),
-      ],
-    );
-  }
+  return Column(
+    children: [
+      CircleAvatar(
+        radius: 50,
+        backgroundColor: Colors.grey.shade300,
+        child: _isValidBase64(_userModel?.profileImageBase64)
+            ? ClipOval(
+                child: Image.memory(
+                  base64Decode(_userModel!.profileImageBase64!),
+                  width: 100,
+                  height: 100,
+                  fit: BoxFit.cover,
+                ),
+              )
+            : (_userModel?.profileImageBase64 != null &&
+                    _userModel!.profileImageBase64!.startsWith('http')
+                ? ClipOval(
+                    child: Image.network(
+                      _userModel!.profileImageBase64!,
+                      width: 100,
+                      height: 100,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(Icons.person, size: 50, color: Colors.white);
+                      },
+                    ),
+                  )
+                : const Icon(Icons.person, size: 50, color: Colors.white)),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        _currentUser?.displayName ?? 'No Name',
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+      ),
+      Text(
+        'Email: ${_currentUser?.email}',
+        style: const TextStyle(fontSize: 14),
+      ),
+    ],
+  );
+}
 
   bool _isValidBase64(String? base64String) {
     if (base64String == null || base64String.isEmpty) return false;
@@ -282,261 +299,271 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
-  Widget _buildFamilyDetails() {
-    final widgets = <Widget>[];
+ Widget _buildFamilyDetails() {
+  final widgets = <Widget>[];
 
-    if (_adminFamily != null) {
-      widgets.add(Card(
-        margin: const EdgeInsets.symmetric(vertical: 8),
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Your Family Code (Share to Let Others Join):',
+  if (_adminFamily != null) {
+    widgets.add(Card(
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: const Text(
+                'Your Family',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 10),
-              FutureBuilder<String>(
-                future: FamilyService().getFamilyCode(_adminFamily!.familyCode),
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const CircularProgressIndicator();
-                  } else if (snapshot.hasError) {
-                    return Text('Error: ${snapshot.error}');
-                  } else {
-                    return TextField(
-                      controller: TextEditingController(text: snapshot.data),
-                      readOnly: true,
-                      decoration: InputDecoration(
-                        labelText: 'Family Code',
-                        border: const OutlineInputBorder(),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.copy),
-                          onPressed: () async {
-                            await Clipboard.setData(
-                              ClipboardData(text: snapshot.data!),
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                  content:
-                                      Text('Family code copied to clipboard!')),
-                            );
-                          },
-                        ),
+            ),
+            const SizedBox(height: 10),
+            FutureBuilder<String>(
+              future: FamilyService().getFamilyCode(_adminFamily!.familyCode),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const CircularProgressIndicator();
+                } else if (snapshot.hasError) {
+                  return Text('Error: ${snapshot.error}');
+                } else {
+                  return TextField(
+                    controller: TextEditingController(text: snapshot.data),
+                    readOnly: true,
+                    decoration: InputDecoration(
+                      labelText: 'Share this Code to Let Others Join:',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.copy),
+                        onPressed: () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: snapshot.data!),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                                content:
+                                    Text('Family code copied to clipboard!')),
+                          );
+                        },
                       ),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 20),
-              const Text(
-                'Family Members:',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              ListView(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                children: _adminFamily!.members.entries.map((entry) {
-                  final email = entry.key;
-                  final name = entry.value;
-                  final isCook = _adminFamily!.cook == email;
-
-                  return ListTile(
-                    title: Row(
-                      children: [
-                        Text(name),
-                        if (isCook) const SizedBox(width: 8),
-                        if (isCook)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Cook',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                      ],
                     ),
-                    subtitle: Text(email),
-                    trailing: email == _adminFamily!.adminEmail
-                        ? const Text(
-                            'Admin',
+                  );
+                }
+              },
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Family Members:',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 10),
+            ListView(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              children: _adminFamily!.members.entries.map((entry) {
+                final email = entry.key;
+                final name = entry.value;
+                final isCook = _adminFamily!.cook == email;
+
+                return ListTile(
+                  title: Row(
+                    children: [
+                      Text(name),
+                      if (isCook) const SizedBox(width: 8),
+                      if (isCook)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Cook',
                             style: TextStyle(
-                              color: Colors.blue,
+                              color: Colors.white,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle,
-                                    color: Colors.red),
-                                onPressed: () async {
-                                  final confirmRemove = await showDialog<bool>(
-                                    context: context,
-                                    builder: (_) => AlertDialog(
-                                      title: const Text('Remove Member'),
-                                      content: Text(
-                                        'Are you sure you want to remove $name from the family?',
-                                      ),
-                                      actions: [
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(false),
-                                          child: const Text('Cancel'),
-                                        ),
-                                        TextButton(
-                                          onPressed: () =>
-                                              Navigator.of(context).pop(true),
-                                          child: const Text(
-                                            'Remove',
-                                            style: TextStyle(color: Colors.red),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-
-                                  if (confirmRemove == true) {
-                                    try {
-                                      await FamilyService().removeMember(
-                                          _adminFamily!.familyCode, email);
-                                      setState(() {
-                                        _adminFamily!.members.remove(email);
-                                      });
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content: Text(
-                                                '$name has been removed from the family.')),
-                                      );
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content: Text(
-                                                'Failed to remove member: $e')),
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                              IconButton(
-                                icon: isCook
-                                    ? const Icon(Icons.check_circle,
-                                        color: Colors.green)
-                                    : const Icon(Icons.local_dining,
-                                        color: Colors.grey),
-                                onPressed: () async {
-                                  try {
-                                    if (isCook) {
-                                      // Remove cook role
-                                      await FamilyService().assignCook(
-                                          _adminFamily!.familyCode, '');
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content: Text(
-                                                '$name is no longer the cook.')),
-                                      );
-                                      setState(() {
-                                        _adminFamily!.cook = null;
-                                      });
-                                    } else {
-                                      // Assign cook role
-                                      await FamilyService().assignCook(
-                                          _adminFamily!.familyCode, email);
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                            content: Text(
-                                                '$name has been assigned the cook role.')),
-                                      );
-                                      setState(() {
-                                        _adminFamily!.cook = email;
-                                      });
-                                    }
-                                  } catch (e) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                          content: Text(
-                                              'Failed to update cook role: $e')),
-                                    );
-                                  }
-                                },
-                              ),
-                            ],
                           ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
+                        ),
+                    ],
+                  ),
+                  subtitle: Text(email),
+                  trailing: email == _adminFamily!.adminEmail
+                      ? const Text(
+                          'Admin',
+                          style: TextStyle(
+                            color: Colors.blue,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        )
+                      : null,
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton.icon(
+              onPressed: _openFillMenuDialog,
+              icon: const Icon(Icons.restaurant_menu, color: Colors.white),
+              label: const Text('Fill Menu'),
+            ),
+          ],
         ),
-      ));
-    }
+      ),
+    ));
+  }
 
-    if (_userFamilies.isEmpty) {
-      widgets.add(const Text('You are not part of any other families.'));
-    } else {
-      widgets.addAll(
-        _userFamilies.map((family) => Card(
-              margin: const EdgeInsets.symmetric(vertical: 8),
-              child: ExpansionTile(
-                title: Text(
-                  family.familyName,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                children: family.members.entries.map((entry) {
-                  final email = entry.key;
-                  final name = entry.value;
-                  final isCook = family.cook == email;
+  if (_userFamilies.isEmpty) {
+    widgets.add(const Text('You are not part of any other families.'));
+  } else {
+    widgets.addAll(
+      _userFamilies.map((family) => Card(
+            margin: const EdgeInsets.symmetric(vertical: 8),
+            child: ExpansionTile(
+              title: Text(
+                family.familyName,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              children: family.members.entries.map((entry) {
+                final email = entry.key;
+                final name = entry.value;
+                final isCook = family.cook == email;
 
-                  return ListTile(
-                    title: Row(
-                      children: [
-                        Text(name),
-                        if (isCook) const SizedBox(width: 8),
-                        if (isCook)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: Colors.green,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              'Cook',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                return ListTile(
+                  title: Row(
+                    children: [
+                      Text(name),
+                      if (isCook) const SizedBox(width: 8),
+                      if (isCook)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.green,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Cook',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
-                      ],
-                    ),
-                    subtitle: Text(email),
-                  );
-                }).toList(),
-              ),
-            )),
-      );
-    }
-
-    return Column(
-        crossAxisAlignment: CrossAxisAlignment.start, children: widgets);
+                        ),
+                    ],
+                  ),
+                  subtitle: Text(email),
+                );
+              }).toList(),
+            ),
+          )),
+    );
   }
+
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: widgets,
+  );
+}
+
+void _openFillMenuDialog() {
+  final lunchController = TextEditingController();
+  final dinnerController = TextEditingController();
+  String selectedDay = 'Monday'; // Default selected day
+
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Fill Family Menu'),
+      content: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Select Day',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            DropdownButton<String>(
+              value: selectedDay,
+              onChanged: (String? newValue) {
+                setState(() {
+                  selectedDay = newValue!;
+                });
+              },
+              items: <String>[
+                'Monday',
+                'Tuesday',
+                'Wednesday',
+                'Thursday',
+                'Friday',
+                'Saturday',
+                'Sunday',
+              ].map<DropdownMenuItem<String>>((String value) {
+                return DropdownMenuItem<String>(
+                  value: value,
+                  child: Text(value),
+                );
+              }).toList(),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Lunch',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextField(
+              controller: lunchController,
+              decoration: const InputDecoration(
+                hintText: 'Enter lunch items, separated by commas',
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Dinner',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            TextField(
+              controller: dinnerController,
+              decoration: const InputDecoration(
+                hintText: 'Enter dinner items, separated by commas',
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () async {
+            final lunchItems =
+                lunchController.text.split(',').map((e) => e.trim()).toList();
+            final dinnerItems =
+                dinnerController.text.split(',').map((e) => e.trim()).toList();
+
+            try {
+              // Use the new updateWeeklyMenu method with the selected day
+              await FamilyService().updateWeeklyMenu(
+                _adminFamily!.familyCode,
+                selectedDay,
+                lunchItems,
+                dinnerItems,
+              );
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Menu updated successfully!')),
+              );
+            } catch (e) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to update menu: $e')),
+              );
+            }
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    ),
+  );
+}
 }

@@ -5,6 +5,13 @@ Whether you're cooking for yourself, your family, or hosting a dinner party, Men
 
 Changelog:
 
+[v1.8.6]
+Show select family at food search and chat room,
+fix profile photo,
+Seprate admin's family,
+
+family list is retained in the users collection after removing member.
+
 
 [v1.8.5]
 Flutter upgrade, Done
@@ -12,10 +19,7 @@ Show cook in member list, Done
 Remove cook tag function, Done
 Show cook in family members list, Done
 Delete account funtion also removes admin family, Done
-Remove member function, 
-Show select family at food search and chat room,
-fix profile photo,
-family list is retained in the users collecting after removing member.
+Remove member function, Done
 
 
 [v1.8.4]

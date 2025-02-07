@@ -1,7 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_polls/flutter_polls.dart';
+
+import '../models/foodModel.dart';
 
 class SearchScreen extends StatefulWidget {
   final User? user;
@@ -21,30 +22,17 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   void initState() {
     super.initState();
-    _fetchMenuData();
+    _initializeMenuData();
   }
 
-  Future<void> _fetchMenuData() async {
-    try {
-      // Fetching menu data from Firestore
-      final lunchMenuSnapshot =
-          await FirebaseFirestore.instance.collection('menus').doc('lunch').get();
-      final dinnerMenuSnapshot =
-          await FirebaseFirestore.instance.collection('menus').doc('dinner').get();
+  void _initializeMenuData() {
+  final weeklyMenu = WeeklyMenu.emptyMenu();
 
-      final lunchItems = List<String>.from(lunchMenuSnapshot['items']);
-      final dinnerItems = List<String>.from(dinnerMenuSnapshot['items']);
-
-      setState(() {
-        votes = {for (var item in lunchItems + dinnerItems) item: 0};
-      });
-    } catch (e) {
-      print('Error fetching menu data: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error fetching menu: $e')),
-      );
-    }
-  }
+  // Initialize votes map with no items yet
+  setState(() {
+    votes = {};
+  });
+}
 
   @override
   Widget build(BuildContext context) {
