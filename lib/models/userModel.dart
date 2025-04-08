@@ -1,49 +1,88 @@
+import 'dart:core';
+
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserModel {
+  String? uid;
   String? displayName;
   String? email;
-  String? profileImageBase64;
-  List<String>? familyList; // Added familyList property
+  String? photoURL;
+  List<String> families;
+  bool? isDeleted;
 
   UserModel({
+    this.uid,
     this.displayName,
     this.email,
-    this.profileImageBase64,
-    this.familyList, // Include in the constructor
-  });
+    this.photoURL,
+    List<String>? families,
+    this.isDeleted,
+  }) : families = families ?? [];
 
-  // Convert the UserModel to a Map for JSON encoding
   Map<String, dynamic> toJson() {
     return {
+      'uid': uid,
       'displayName': displayName,
       'email': email,
-      'profileImageBase64': profileImageBase64,
-      'familyList': familyList, // Include familyList in JSON conversion
+      'photoURL': photoURL,
+      'families': families,
+      'isDeleted': isDeleted,
     };
   }
 
-  // Create a UserModel instance from a JSON Map
-  factory UserModel.fromJson(Map<String, dynamic> json) {
+  factory UserModel.fromFirebaseUser(User user) {
     return UserModel(
-      displayName: json['displayName'],
-      email: json['email'],
-      profileImageBase64: json['profileImageBase64'],
-      familyList: json['familyList'] != null
-          ? List<String>.from(json['familyList']) // Convert list from JSON
-          : [], // Default to an empty list if null
+      uid: user.uid,
+      displayName: user.displayName,
+      email: user.email,
+      photoURL: user.photoURL,
+      families: [],
+      isDeleted: null,
     );
   }
 
-  // Add a method to update the family list
-  void addFamily(String familyCode) {
-    familyList ??= []; // Initialize if null
-    if (!familyList!.contains(familyCode)) {
-      familyList!.add(familyCode);
-    }
+  factory UserModel.fromJson(Map<String, dynamic> json) {
+    return UserModel(
+      uid: json['uid'] as String?,
+      displayName: json['displayName'] as String?,
+      email: json['email'] as String?,
+      photoURL: json['photoURL'] as String?,
+      families: (json['families'] as List<dynamic>? ?? []).cast<String>(),
+      isDeleted: null,
+    );
   }
 
-  // Remove a family from the list
-  void removeFamily(String familyCode) {
-    familyList?.remove(familyCode);
+  UserModel copyWith({
+    String? uid,
+    String? displayName,
+    String? email,
+    String? photoURL,
+    List<String>? families,
+    bool? isDeleted,
+  }) {
+    return UserModel(
+      uid: uid ?? this.uid,
+      displayName: displayName ?? this.displayName,
+      email: email ?? this.email,
+      photoURL: photoURL ?? this.photoURL,
+      families: families ?? this.families,
+      isDeleted: isDeleted,
+    );
+  }
+
+  UserModel addFamily(String familyCode) {
+    if (!families.contains(familyCode)) {
+      return copyWith(families: [...families, familyCode]);
+    }
+    return this;
+  }
+
+  UserModel removeFamily(String familyCode) {
+    return copyWith(families: families.where((f) => f != familyCode).toList());
+  }
+
+  @override
+  String toString() {
+    return 'UserModel(displayName: $displayName, email: $email, families: $families)';
   }
 }

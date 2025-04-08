@@ -25,21 +25,27 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<Map<String, dynamic>?> _fetchUserDetails() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user != null) {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(user.email).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.email)
+          .get();
       if (doc.exists) {
         final userData = doc.data();
-        await _fetchUserFamilies(userData?['familyList'] as List<dynamic>?);
+        await _fetchUserFamilies(userData?['families'] as List<dynamic>?);
         return userData;
       }
     }
     return null;
   }
 
-  Future<void> _fetchUserFamilies(List<dynamic>? familyList) async {
-    if (familyList != null) {
-      List<Map<String, dynamic>> families = [];
-      for (String familyCode in familyList) {
-        final familyDoc = await FirebaseFirestore.instance.collection('families').doc(familyCode).get();
+  Future<void> _fetchUserFamilies(List<dynamic>? families) async {
+    if (families != null) {
+      List<Map<String, dynamic>> userFamilies = [];
+      for (String familyCode in families) {
+        final familyDoc = await FirebaseFirestore.instance
+            .collection('families')
+            .doc(familyCode)
+            .get();
         if (familyDoc.exists) {
           families.add({
             'familyCode': familyCode,
@@ -48,7 +54,7 @@ class _ChatScreenState extends State<ChatScreen> {
         }
       }
       setState(() {
-        _families = families;
+        _families = userFamilies;
         if (_families.isNotEmpty) {
           _selectedFamily = _families.first['familyCode'];
         }
@@ -140,7 +146,8 @@ class _ChatScreenState extends State<ChatScreen> {
                     items: _families
                         .map((family) => DropdownMenuItem<String>(
                               value: family['familyCode'],
-                              child: Text(family['familyName'] ?? 'Unnamed Family'),
+                              child: Text(
+                                  family['familyName'] ?? 'Unnamed Family'),
                             ))
                         .toList(),
                     onChanged: (value) {
@@ -176,7 +183,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         reverse: true,
                         itemCount: messages.length,
                         itemBuilder: (context, index) {
-                          final message = messages[index].data() as Map<String, dynamic>;
+                          final message =
+                              messages[index].data() as Map<String, dynamic>;
                           final isSender = message['uid'] == _currentUserId;
                           return _buildMessage(message, isSender);
                         },

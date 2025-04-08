@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:eatit/services/userService.dart';
+import 'services/platformService.dart';
 import 'ui/homeNavigationBar.dart';
 import 'ui/signInScreen.dart';
 import 'ui/theme.dart';
@@ -17,28 +18,31 @@ Future<void> initializeFirebase() async {
     ),
   );
 }
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeFirebase();
-
+  await PlatformService.initializeAppVersion();
   UserModel? cachedUser = await UserService().loadCachedUserData();
 
-  runApp(MyApp(userData: cachedUser));
+  runApp(MyApp(user: cachedUser));
 }
 
 class MyApp extends StatelessWidget {
-  final UserModel? userData;
+  final UserModel? user;
 
-  const MyApp({super.key, this.userData});
+  const MyApp({super.key, this.user});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Eat-It',
       theme: appTheme,
-      home: userData == null
-          ? const SignInScreen()
-          : HomeNavigationBar(user: FirebaseAuth.instance.currentUser),
+      home: user == null
+          ? SignInScreen()
+          : HomeNavigationBar(
+              user: FirebaseAuth.instance.currentUser,
+            ),
     );
   }
 }

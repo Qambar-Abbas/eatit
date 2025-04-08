@@ -1,0 +1,2 @@
+/Users/qambar/dev/eatit/android/app/.cxx/Debug/1u53551f/armeabi-v7a/CMakeFiles/edit_cache.dir
+/Users/qambar/dev/eatit/android/app/.cxx/Debug/1u53551f/armeabi-v7a/CMakeFiles/rebuild_cache.dir

@@ -1,6 +1,8 @@
+import 'package:eatit/models/familyModel.dart';
+import 'package:eatit/services/familyService.dart';
+import 'package:eatit/ui/menuScreen.dart';
 import 'package:flutter/material.dart';
 import 'chatScreen.dart';
-import 'SearchScreen.dart';
 import 'ProfileScreen.dart';
 
 class HomeNavigationBar extends StatefulWidget {
@@ -15,13 +17,13 @@ class _HomeNavigationBarState extends State<HomeNavigationBar>
     with AutomaticKeepAliveClientMixin {
   late PageController _pageController;
   final ValueNotifier<int> _selectedIndex = ValueNotifier<int>(1);
+  final FamilyService familyService = FamilyService();
 
   @override
   void initState() {
     super.initState();
     _pageController = PageController(initialPage: _selectedIndex.value);
 
-    // Listen to page changes and update the navigation bar index
     _pageController.addListener(() {
       int currentIndex = _pageController.page!.round();
       if (_selectedIndex.value != currentIndex) {
@@ -48,9 +50,13 @@ class _HomeNavigationBarState extends State<HomeNavigationBar>
     }
   }
 
+  void _onPageChanged(int index) {
+    _onItemTapped(index); // Change page when dropdown selection happens
+  }
+
   @override
   Widget build(BuildContext context) {
-    super.build(context); // Required for AutomaticKeepAliveClientMixin
+    super.build(context);
     return Scaffold(
       body: PageView.builder(
         controller: _pageController,
@@ -71,7 +77,7 @@ class _HomeNavigationBarState extends State<HomeNavigationBar>
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.restaurant_menu),
-                label: 'Search',
+                label: 'Menu',
               ),
               BottomNavigationBarItem(
                 icon: Icon(Icons.person),
@@ -89,10 +95,10 @@ class _HomeNavigationBarState extends State<HomeNavigationBar>
   }
 
   List<Widget> get _widgetOptions => <Widget>[
-    const ChatScreen(),
-    const SearchScreen(),
-    ProfileScreen(),
-  ];
+        const ChatScreen(),
+        MenuScreenWrapper(),
+        ProfileScreen(),
+      ];
 
   @override
   bool get wantKeepAlive => true;

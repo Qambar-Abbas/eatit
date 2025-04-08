@@ -1,116 +1,151 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/models/userModel.dart';
+import 'package:eatit/services/familyService.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'familyService.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  Future<void> createUserInFirestore(User? user) async {
-    if (user != null) {
-      try {
-        final userModel = UserModel(
-          displayName: user.displayName ?? '',
-          email: user.email!,
-          profileImageBase64: user.photoURL,
-        );
-        await _firestore
-            .collection('users')
-            .doc(user.email)
-            .set(userModel.toJson());
-      } catch (e) {
-        print('Error creating user in Firestore: $e');
-        rethrow;
-      }
+  Future<void> storeUserInFirestore(User user) async {
+    try {
+      DocumentReference userRef =
+          _firestore.collection('users').doc(user.email);
+      UserModel userModel = UserModel(
+        uid: user.uid,
+        displayName: user.displayName,
+        email: user.email,
+        photoURL: user.photoURL,
+        families: null,
+        isDeleted: false,
+      );
+
+      await userRef.set(userModel.toJson(), SetOptions(merge: true));
+
+      print("✅ User data stored successfully.");
+    } catch (e) {
+      print("❌ Error storing user in Firestore: $e");
     }
   }
 
-  Future<String?> convertProfileImage(String imageUrl) async {
+  Future<void> updateUserFamilies({
+    required String userEmail,
+    required String familyCode,
+    required bool add,
+  }) async {
+    final DocumentReference userDoc =
+        _firestore.collection('users').doc(userEmail);
+
     try {
-      if (imageUrl.isEmpty) return null;
-
-      final response = await http.get(Uri.parse(imageUrl));
-
-      if (response.statusCode == 200) {
-        final bytes = response.bodyBytes;
-        return bytes.isNotEmpty ? base64Encode(bytes) : null;
+      if (add) {
+        await userDoc.update({
+          'families': FieldValue.arrayUnion([familyCode]),
+        });
+        print("✅ Family code '$familyCode' added for $userEmail.");
       } else {
-        print('Failed to load image: ${response.statusCode}');
-        return null;
+        await userDoc.update({
+          'families': FieldValue.arrayRemove([familyCode]),
+        });
+        print("✅ Family code '$familyCode' removed for $userEmail.");
       }
     } catch (e) {
-      print('Error fetching or converting image: $e');
-      return null;
-    }
-  }
-
-  Future<void> updateFamilyList(String userEmail, String familyCode) async {
-    try {
-      DocumentReference userRef = _firestore.collection('users').doc(userEmail);
-
-      DocumentSnapshot userSnapshot = await userRef.get();
-
-      if (userSnapshot.exists) {
-        UserModel user =
-            UserModel.fromJson(userSnapshot.data() as Map<String, dynamic>);
-
-        user.familyList ??= [];
-        if (!user.familyList!.contains(familyCode)) {
-          user.familyList!.add(familyCode);
-        }
-
-        await userRef.update({'familyList': user.familyList});
-      } else {
-        throw Exception('User not found');
-      }
-    } catch (e) {
-      print('Error updating family list: $e');
+      print("❌ Error updating user families: $e");
       rethrow;
     }
-  }
-
-  Future<void> storeUserLocally(User? user) async {
-    if (user != null) {
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      var profileBase64EncodeImage = await convertProfileImage(user.photoURL!);
-      UserModel userModel = UserModel(
-          displayName: user.displayName!,
-          email: user.email!,
-          profileImageBase64: profileBase64EncodeImage);
-      await prefs.setString('userEmail', user.email!);
-      await prefs.setString('displayName', user.displayName ?? '');
-      await prefs.setString('userData', jsonEncode(userModel));
-    }
-  }
-
-  Future<UserModel?> loadCachedUserData() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? userDataString = prefs.getString('userData');
-
-    if (userDataString != null) {
-      Map<String, dynamic> jsonMap = json.decode(userDataString);
-      UserModel user = UserModel.fromJson(jsonMap);
-      return user;
-    }
-    return null;
   }
 
   Future<UserModel?> getUserData(String email) async {
     try {
       DocumentSnapshot<Map<String, dynamic>> doc =
           await _firestore.collection('users').doc(email).get();
-      if (doc.exists) {
-        return UserModel.fromJson(doc.data()!);
-      } else {
-        print('No user found with email: $email');
-        return null;
-      }
+      return doc.exists ? UserModel.fromJson(doc.data()!) : null;
     } catch (e) {
-      print('Error getting user data: $e');
+      print("❌ Error fetching user data: $e");
+      return null;
+    }
+  }
+
+  Future<List<FamilyModel>> getUserFamilyDetails(String userEmail) async {
+    final userDoc = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(userEmail)
+        .get();
+
+    final List<String> codes =
+        (userDoc.data()?['families'] ?? []).cast<String>();
+
+    List<FamilyModel> families = [];
+
+    for (final code in codes) {
+      final doc = await FirebaseFirestore.instance
+          .collection('families')
+          .doc(code)
+          .get();
+      if (doc.exists) {
+        families.add(FamilyModel.fromJson(doc.data()!));
+      }
+    }
+
+    return families;
+  }
+
+  Future<void> addFamilyToUser(String email, String familyCode) async {
+    try {
+      UserModel? user = await getUserData(email);
+      if (user == null) throw Exception("User not found.");
+
+      UserModel updatedUser = user.addFamily(familyCode);
+      await _firestore
+          .collection('users')
+          .doc(email)
+          .update(updatedUser.toJson());
+      print("✅ Family added successfully.");
+    } catch (e) {
+      print("❌ Error adding family to user: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> removeFamilyFromUser(String email, String familyCode) async {
+    try {
+      UserModel? user = await getUserData(email);
+      if (user == null) throw Exception("User not found.");
+
+      UserModel updatedUser = user.removeFamily(familyCode);
+      await _firestore
+          .collection('users')
+          .doc(email)
+          .update(updatedUser.toJson());
+      print("✅ Family removed successfully.");
+    } catch (e) {
+      print("❌ Error removing family from user: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> storeUserLocally(UserModel user) async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      await prefs.setString('userData', jsonEncode(user.toJson()));
+      print("✅ User data stored locally.");
+    } catch (e) {
+      print("❌ Error storing user locally: $e");
+    }
+  }
+
+  Future<UserModel?> loadCachedUserData() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userDataString = prefs.getString('userData');
+
+      return (userDataString != null)
+          ? UserModel.fromJson(json.decode(userDataString))
+          : null;
+    } catch (e) {
+      print("❌ Error loading cached user data: $e");
       return null;
     }
   }
@@ -118,82 +153,66 @@ class UserService {
   Future<void> logout() async {
     try {
       await _auth.signOut();
-
       SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.remove('userEmail');
-      await prefs.remove('displayName');
-      await prefs.remove('userData');
-
-      print("User logged out and shared preferences cleared.");
+      await prefs.clear();
+      print("✅ User logged out and local data cleared.");
     } catch (e) {
-      print("Error logging out: $e");
+      print("❌ Error logging out: $e");
     }
   }
 
-  Future<void> updateUserInFireBase(
-      String generatedFamilyCode, UserModel user) async {
-    user.addFamily(generatedFamilyCode);
-    if (user.email != null) {
-      try {
-        await _firestore
-            .collection('users')
-            .doc(user.email)
-            .update(user.toJson());
-        SharedPreferences prefs = await SharedPreferences.getInstance();
-        await prefs.setString('userData', jsonEncode(user));
-      } catch (e) {
-        print('Error updating user in Firestore: $e');
-        rethrow;
-      }
-    } else {
-      print('User email is required to update user data.');
-    }
-  }
+  Future<void> deleteUserAccount() async {
+    final User? user = _auth.currentUser;
 
-  Future<void> deleteUserAccount(String email) async {
+    if (user == null) {
+      throw FirebaseAuthException(
+        code: 'no-user',
+        message: 'No user currently signed in.',
+      );
+    }
+
+    final String email = user.email ?? '';
+
     try {
-      QuerySnapshot memberFamiliesSnapshot = await _firestore
+      await _firestore.collection('users').doc(email).update({
+        'isDeleted': true,
+      });
+
+      final familiesSnapshot = await _firestore
           .collection('families')
-          .where('members.$email', isNull: false)
-          .get();
+          .where('members', arrayContains: {'email': email}).get();
 
-      for (var familyDoc in memberFamiliesSnapshot.docs) {
-        String familyCode = familyDoc.id;
-        await FamilyService().removeMember(familyCode, email);
-
-        DocumentSnapshot updatedFamilySnapshot =
-            await _firestore.collection('families').doc(familyCode).get();
-
-        if (updatedFamilySnapshot.exists &&
-            (updatedFamilySnapshot.data() as Map<String, dynamic>)['members']
-                .isEmpty) {
-          await _firestore.collection('families').doc(familyCode).delete();
-          print('Deleted empty family document: $familyCode.');
-        }
+      for (var familyDoc in familiesSnapshot.docs) {
+        await FamilyService().removeMember(familyDoc.id, email);
       }
 
-      QuerySnapshot adminFamilySnapshot = await _firestore
+      final adminFamiliesSnapshot = await _firestore
           .collection('families')
           .where('adminEmail', isEqualTo: email)
           .get();
 
-      for (var adminFamilyDoc in adminFamilySnapshot.docs) {
-        String adminFamilyCode = adminFamilyDoc.id;
-        await _firestore.collection('families').doc(adminFamilyCode).delete();
-        print('Deleted admin family: $adminFamilyCode.');
+      for (var adminFamilyDoc in adminFamiliesSnapshot.docs) {
+        await _firestore.collection('families').doc(adminFamilyDoc.id).delete();
       }
 
-      await _firestore.collection('users').doc(email).delete();
-      print('User account deleted successfully.');
+      await user.delete();
 
-      SharedPreferences prefs = await SharedPreferences.getInstance();
-      await prefs.remove('userEmail');
-      await prefs.remove('displayName');
-      await prefs.remove('userData');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.clear();
+
+      print("✅ User account and all related data deleted successfully.");
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        throw FirebaseAuthException(
+          code: 'reauthentication-required',
+          message: 'Please re-authenticate before deleting your account.',
+        );
+      } else {
+        throw Exception('❌ Auth deletion failed: ${e.message}');
+      }
     } catch (e) {
-      print('Error deleting user account: $e');
+      print("❌ Unexpected error deleting user account: $e");
       rethrow;
     }
   }
-
 }

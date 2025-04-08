@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 class PlatformService {
-  /// Get the current platform name
   static String getPlatform() {
     if (kIsWeb) {
       return 'Web';
@@ -21,14 +20,18 @@ class PlatformService {
     }
   }
 
-  /// Get app version
-  static Future<String> getAppVersion() async {
+  static String _appVersion = 'Unavailable';
+  static Future<void> initializeAppVersion() async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
-      return packageInfo.version;
+      _appVersion = packageInfo.version;
     } catch (e) {
       print('Error retrieving app version: $e');
-      return "Unavailable";
+      _appVersion = 'Unavailable';
     }
+  }
+
+  static String getAppVersion() {
+    return _appVersion;
   }
 }
