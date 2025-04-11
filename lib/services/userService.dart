@@ -6,6 +6,8 @@ import 'package:eatit/services/familyService.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -68,30 +70,6 @@ class UserService {
     }
   }
 
-  Future<List<FamilyModel>> getUserFamilyDetails(String userEmail) async {
-    final userDoc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userEmail)
-        .get();
-
-    final List<String> codes =
-        (userDoc.data()?['families'] ?? []).cast<String>();
-
-    List<FamilyModel> families = [];
-
-    for (final code in codes) {
-      final doc = await FirebaseFirestore.instance
-          .collection('families')
-          .doc(code)
-          .get();
-      if (doc.exists) {
-        families.add(FamilyModel.fromJson(doc.data()!));
-      }
-    }
-
-    return families;
-  }
-
   Future<void> addFamilyToUser(String email, String familyCode) async {
     try {
       UserModel? user = await getUserData(email);
@@ -148,6 +126,22 @@ class UserService {
       print("❌ Error loading cached user data: $e");
       return null;
     }
+  }
+
+  Future<String?> loadCachedUserEmail() async {
+    try {
+      SharedPreferences prefs = await SharedPreferences.getInstance();
+      String? userDataString = prefs.getString('userData');
+
+      if (userDataString != null) {
+        var userData = UserModel.fromJson(json.decode(userDataString));
+        return userData.email!;
+      }
+    } catch (e) {
+      print("❌ Error loading cached user data: $e");
+      return null;
+    }
+    return null;
   }
 
   Future<void> logout() async {

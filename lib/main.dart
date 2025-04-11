@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:eatit/services/userService.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'services/platformService.dart';
 import 'ui/homeNavigationBar.dart';
 import 'ui/signInScreen.dart';
@@ -25,7 +26,11 @@ void main() async {
   await PlatformService.initializeAppVersion();
   UserModel? cachedUser = await UserService().loadCachedUserData();
 
-  runApp(MyApp(user: cachedUser));
+  runApp(
+    ProviderScope(
+      child: MyApp(user: cachedUser),
+    ),
+  );
 }
 
 class MyApp extends StatelessWidget {
