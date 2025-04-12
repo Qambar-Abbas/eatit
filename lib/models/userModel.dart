@@ -1,5 +1,4 @@
 import 'dart:core';
-
 import 'package:firebase_auth/firebase_auth.dart';
 
 class UserModel {
@@ -8,7 +7,7 @@ class UserModel {
   String? email;
   String? photoURL;
   List<String> families;
-  bool? isDeleted;
+  bool isDeleted;
 
   UserModel({
     this.uid,
@@ -16,8 +15,9 @@ class UserModel {
     this.email,
     this.photoURL,
     List<String>? families,
-    this.isDeleted,
-  }) : families = families ?? [];
+    bool? isDeleted,
+  })  : families = families ?? [],
+        isDeleted = isDeleted ?? false;
 
   Map<String, dynamic> toJson() {
     return {
@@ -37,7 +37,7 @@ class UserModel {
       email: user.email,
       photoURL: user.photoURL,
       families: [],
-      isDeleted: null,
+      isDeleted: false,
     );
   }
 
@@ -48,7 +48,7 @@ class UserModel {
       email: json['email'] as String?,
       photoURL: json['photoURL'] as String?,
       families: (json['families'] as List<dynamic>? ?? []).cast<String>(),
-      isDeleted: null,
+      isDeleted: json['isDeleted'] as bool? ?? false,
     );
   }
 
@@ -66,7 +66,7 @@ class UserModel {
       email: email ?? this.email,
       photoURL: photoURL ?? this.photoURL,
       families: families ?? this.families,
-      isDeleted: isDeleted,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
 
@@ -83,6 +83,6 @@ class UserModel {
 
   @override
   String toString() {
-    return 'UserModel(displayName: $displayName, email: $email, families: $families)';
+    return 'UserModel(displayName: $displayName, email: $email, families: $families, isDeleted: $isDeleted)';
   }
 }

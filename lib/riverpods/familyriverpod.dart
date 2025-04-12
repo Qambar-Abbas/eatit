@@ -14,7 +14,8 @@ final userFamiliesProvider =
   for (final code in codes) {
     final doc =
         await FirebaseFirestore.instance.collection('families').doc(code).get();
-    if (doc.exists) {
+    if (doc.exists && doc.data()?['isDeleted'] == false) {
+      // Check if it exists and is not deleted
       families.add(FamilyModel.fromJson(doc.data()!));
     }
   }

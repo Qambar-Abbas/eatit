@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/models/userModel.dart';
 import 'package:eatit/services/familyService.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -155,57 +153,78 @@ class UserService {
     }
   }
 
-  Future<void> deleteUserAccount() async {
+  Future<void> deleteUserAccountWithGoogle() async {
     final User? user = _auth.currentUser;
-
     if (user == null) {
       throw FirebaseAuthException(
         code: 'no-user',
         message: 'No user currently signed in.',
       );
     }
-
     final String email = user.email ?? '';
 
     try {
-      await _firestore.collection('users').doc(email).update({
-        'isDeleted': true,
-      });
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) {
+        throw FirebaseAuthException(
+          code: 'sign-in-cancelled',
+          message: 'Google Sign-In was cancelled.',
+        );
+      }
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+      await user.reauthenticateWithCredential(credential);
+      print("✅ Google user reauthenticated.");
 
-      final familiesSnapshot = await _firestore
+      WriteBatch batch = _firestore.batch();
+      DocumentReference userRef = _firestore.collection('users').doc(email);
+
+      QuerySnapshot nonAdminFamiliesSnapshot = await _firestore
           .collection('families')
           .where('members', arrayContains: {'email': email}).get();
+      for (var familyDoc in nonAdminFamiliesSnapshot.docs) {
+        final data = familyDoc.data() as Map<String, dynamic>;
 
-      for (var familyDoc in familiesSnapshot.docs) {
-        await FamilyService().removeMember(familyDoc.id, email);
+        if ((data['adminEmail'] ?? '') != email) {
+          batch.update(familyDoc.reference, {
+            'members': FieldValue.arrayRemove([
+              {'email': email, 'name': user.displayName}
+            ])
+          });
+        }
       }
 
-      final adminFamiliesSnapshot = await _firestore
+      QuerySnapshot adminFamilyQuery = await _firestore
           .collection('families')
           .where('adminEmail', isEqualTo: email)
+          .where('isDeleted', isEqualTo: false)
+          .limit(1)
           .get();
+      if (adminFamilyQuery.docs.isNotEmpty) {
+        DocumentReference adminFamilyRef =
+            adminFamilyQuery.docs.first.reference;
+        batch.update(adminFamilyRef, {'isDeleted': true});
 
-      for (var adminFamilyDoc in adminFamiliesSnapshot.docs) {
-        await _firestore.collection('families').doc(adminFamilyDoc.id).delete();
+        await FamilyService()
+            .removeFamilyFromUserFamilies(adminFamilyRef.id, email);
       }
 
-      await user.delete();
+      batch.update(userRef, {'isDeleted': true});
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      await batch.commit();
+      print("✅ Logical deletion: Firestore documents updated.");
 
-      print("✅ User account and all related data deleted successfully.");
+      await logout();
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        throw FirebaseAuthException(
-          code: 'reauthentication-required',
-          message: 'Please re-authenticate before deleting your account.',
-        );
-      } else {
-        throw Exception('❌ Auth deletion failed: ${e.message}');
-      }
+      print("❌ FirebaseAuthException: ${e.code} - ${e.message}");
+      throw Exception('Logical deletion failed: ${e.message}');
     } catch (e) {
-      print("❌ Unexpected error deleting user account: $e");
+      print("❌ Unexpected error during logical deletion: $e");
       rethrow;
     }
   }

@@ -1,10 +1,12 @@
 import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/models/userModel.dart';
 import 'package:eatit/riverpods/familyriverpod.dart';
+import 'package:eatit/riverpods/userStateRiverPod.dart';
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/services/platformService.dart';
 import 'package:eatit/services/userService.dart';
 import 'package:eatit/ui/signinScreen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -16,9 +18,8 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  late Future<UserModel?> _userModel;
+  // late Future<UserModel?> _userModel;
 
-  // late Future<List<FamilyModel>> _userFamilies;
   final TextEditingController _joinFamilyController = TextEditingController();
   final String appVersion = PlatformService.getAppVersion() ?? 'NA';
   final String platform = PlatformService.getPlatform() ?? 'NA';
@@ -26,38 +27,82 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   void initState() {
     super.initState();
-    _userModel = UserService().loadCachedUserData();
+    // _userModel = UserService().loadCachedUserData();
+    ref.read(userStateProvider.notifier).loadUserData();
   }
 
-  /// Extracts the admin family code if the current user is an admin.
-  String _getAdminFamilyCode(List<FamilyModel> families, String? userEmail) {
-    if (userEmail == null) return 'User email not found';
-    try {
-      final adminFamily = families.firstWhere((family) =>
-          family.adminEmail == userEmail && family.isDeleted == false);
-      return adminFamily.familyCode;
-    } catch (e) {
-      return "Your Family Code Will Appear Here";
+  @override
+  Widget build(BuildContext context) {
+    return Consumer(
+      builder: (context, watch, _) {
+        final user = ref.watch(userStateProvider);
+
+        if (user == null) {
+          return const Scaffold(
+              body: Center(child: CircularProgressIndicator()));
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Profile'),
+            centerTitle: true,
+            actions: [
+              Builder(
+                builder: (context) => IconButton(
+                  icon: const Icon(Icons.menu),
+                  onPressed: () {
+                    Scaffold.of(context).openEndDrawer();
+                  },
+                ),
+              ),
+            ],
+          ),
+          endDrawer: _buildEndDrawer(user, ref),
+          body: Consumer(
+            builder: (context, ref, _) {
+              final familiesAsync =
+                  ref.watch(userFamiliesProvider(user.email!));
+
+              return familiesAsync.when(
+                data: (families) {
+                  return Column(
+                    children: [
+                      _buildTextForFamilyCode(families),
+                      Expanded(child: _buildContent(user, families)),
+                    ],
+                  );
+                },
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, _) =>
+                    Center(child: Text('Error loading families: $error')),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Padding _buildTextForFamilyCode(List<FamilyModel> families) {
+    String displayText = 'Your family code will appear here';
+
+    if (families.isNotEmpty) {
+      final code = families.first.familyCode;
+      if (code.isNotEmpty) {
+        displayText = 'Family Code: $code';
+      }
     }
-  }
 
-  /// Builds the text field showing the admin's family code.
-  Widget _buildFamilyCodeField(List<FamilyModel> families, String? userEmail) {
-    final familyCode = _getAdminFamilyCode(families, userEmail);
-    return TextFormField(
-      initialValue: familyCode,
-      readOnly: true,
-      decoration: const InputDecoration(
-        suffixIcon: Icon(Icons.share),
-        filled: true,
-        fillColor: Colors.black12,
-        border: OutlineInputBorder(),
+    return Padding(
+      padding: const EdgeInsets.all(8.0),
+      child: Text(
+        displayText,
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
       ),
     );
   }
 
-  /// Builds the end drawer that contains profile and family actions.
-  Widget _buildEndDrawer(UserModel user) {
+  Widget _buildEndDrawer(UserModel user, WidgetRef ref) {
     return Drawer(
       child: SafeArea(
         child: Column(
@@ -68,9 +113,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                 children: [
                   _buildProfileHeader(user),
-                  _buildJoinFamilySection(user),
+                  _buildJoinFamilySection(user, ref),
                   const SizedBox(height: 10),
-                  _buildCreateFamilyButton(user),
+                  _buildCreateFamilyButton(user, ref),
                   const SizedBox(height: 10),
                   _buildDeleteFamilyButton(context, user),
                   const Divider(),
@@ -103,19 +148,51 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  /// Builds the join family section as a single text field with a done icon.
-  Widget _buildJoinFamilySection(UserModel user) {
+  Widget _buildJoinFamilySection(UserModel user, WidgetRef ref) {
     return TextFormField(
       controller: _joinFamilyController,
       decoration: InputDecoration(
         hintText: 'Enter Family Code To Join',
         border: const OutlineInputBorder(),
         suffixIcon: IconButton(
-          icon: const Icon(Icons.done),
+          icon: const Icon(Icons.arrow_circle_right_outlined),
           onPressed: () async {
             final familyCode = _joinFamilyController.text.trim();
-            if (familyCode.isEmpty) return;
+
+            if (familyCode.length != 20) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      "❗ Invalid family code. It must be exactly 20 characters long."),
+                ),
+              );
+              return;
+            }
+
             try {
+              final family = await FamilyService().getFamilyByCode(familyCode);
+
+              if (family == null || family.isDeleted == true) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("❌ No family found with this code."),
+                  ),
+                );
+                return;
+              }
+
+              final alreadyInFamily =
+                  family.members.any((member) => member['email'] == user.email);
+
+              if (alreadyInFamily) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("ℹ️ You're already a member of this family."),
+                  ),
+                );
+                return;
+              }
+
               await FamilyService().updateFamilyMembers(
                 familyDocId: familyCode,
                 member: {
@@ -124,16 +201,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 },
                 add: true,
               );
+
               await UserService().updateUserFamilies(
                 userEmail: user.email!,
                 familyCode: familyCode,
                 add: true,
               );
 
-              // Refresh the family details.
-              // setState(() {
-              //   _userFamilies = UserService().getUserFamilyDetails(user.email!);
-              // });
+              ref.invalidate(userFamiliesProvider(user.email!));
 
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
@@ -144,7 +219,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             } catch (e) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text(e.toString()),
+                  content: Text("❌ Error: ${e.toString()}"),
                 ),
               );
             }
@@ -154,7 +229,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildCreateFamilyButton(UserModel user) {
+  Widget _buildCreateFamilyButton(UserModel user, WidgetRef ref) {
     return ElevatedButton.icon(
       onPressed: () async {
         try {
@@ -174,16 +249,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           );
 
-          // Refresh the family details after creation.
-          // setState(() {
-          //   _userFamilies = UserService().getUserFamilyDetails(user.email!);
-          // });
-
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('🎉 Family created successfully!'),
             ),
           );
+          ref.invalidate(userFamiliesProvider(user.email!));
+          setState(() {});
         } catch (e) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -202,8 +274,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _buildDeleteFamilyButton(BuildContext context, UserModel user) {
     return ElevatedButton.icon(
-      onPressed: () {
-        showDialog(
+      onPressed: () async {
+        final result = await showDialog(
           context: context,
           builder: (BuildContext context) {
             return AlertDialog(
@@ -213,14 +285,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               actions: [
                 TextButton(
                   onPressed: () {
-                    Navigator.of(context).pop(); // Close the dialog
+                    Navigator.of(context).pop('cancel');
                   },
                   child: const Text("Cancel"),
                 ),
                 TextButton(
                   onPressed: () {
-                    Navigator.of(context).pop(); // Close the dialog
                     FamilyService().deleteFamilyAsAdmin(user.email!);
+                    Navigator.of(context).pop('deleted');
                   },
                   child: const Text(
                     "Delete",
@@ -231,6 +303,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             );
           },
         );
+        if (result == 'deleted') {
+          ref.invalidate(userFamiliesProvider(user.email!));
+          if (mounted) setState(() {});
+        }
       },
       icon: const Icon(Icons.delete),
       label: const Text("Delete My Family"),
@@ -290,19 +366,61 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               );
 
               if (confirmed == true) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (_) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                );
+
                 try {
-                  await UserService().deleteUserAccount();
+                  await UserService().deleteUserAccountWithGoogle();
                   await UserService().logout();
+
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Account deleted successfully."),
+                    ),
+                  );
+
                   Navigator.of(context).pushAndRemoveUntil(
                     MaterialPageRoute(builder: (_) => const SignInScreen()),
                     (route) => false,
                   );
+                } on FirebaseAuthException catch (e) {
+                  Navigator.of(context).pop();
+
+                  if (e.code == 'reauthentication-required') {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text(
+                            "Please reauthenticate to delete your account."),
+                      ),
+                    );
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Auth error: ${e.message}')),
+                    );
+                  }
                 } catch (e) {
+                  Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(content: Text('Error: ${e.toString()}')),
                   );
                 }
+                if (confirmed != null && confirmed) {
+                  // ref.invalidate(userFamiliesProvider(user.email!));
+                  final container = ProviderContainer();
+
+                  container.dispose();
+
+                  if (mounted) setState(() {});
+                }
               }
+              ref.invalidate(userFamiliesProvider(user.email!));
+              if (mounted) setState(() {});
             },
             icon: const Icon(Icons.delete),
             label: const Text("Delete Account"),
@@ -344,15 +462,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  /// Builds the main content of the screen that displays the family admin code
-  /// and a list of family details.
   Widget _buildContent(UserModel user, List<FamilyModel> families) {
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: _buildFamilyCodeField(families, user.email),
-        ),
         Expanded(
           child: ListView(
             children: families.map((family) {
@@ -389,64 +501,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<UserModel?>(
-      future: _userModel,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
-        }
-        if (snapshot.hasError) {
-          return Scaffold(
-            body: Center(child: Text('❌ Error: ${snapshot.error}')),
-          );
-        }
-        final user = snapshot.data;
-        if (user == null) {
-          return const Scaffold(
-            body: Center(child: Text('No user data found')),
-          );
-        }
-
-        // Initialize user family details.
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Profile'),
-            centerTitle: true,
-            actions: [
-              Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () {
-                    Scaffold.of(context).openEndDrawer();
-                  },
-                ),
-              ),
-            ],
-          ),
-          endDrawer: _buildEndDrawer(user),
-          body: Consumer(
-            builder: (context, ref, _) {
-              final familiesAsync =
-                  ref.watch(userFamiliesProvider(user.email!));
-
-              return familiesAsync.when(
-                data: (families) => _buildContent(user, families),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) =>
-                    Center(child: Text('Error loading families: $error')),
-              );
-            },
-          ),
-        );
-      },
     );
   }
 }
