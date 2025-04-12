@@ -1,4 +1,3 @@
-import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/ui/menuScreen.dart';
 import 'package:flutter/material.dart';
@@ -50,10 +49,6 @@ class _HomeNavigationBarState extends State<HomeNavigationBar>
     }
   }
 
-  void _onPageChanged(int index) {
-    _onItemTapped(index); // Change page when dropdown selection happens
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -96,7 +91,7 @@ class _HomeNavigationBarState extends State<HomeNavigationBar>
 
   List<Widget> get _widgetOptions => <Widget>[
         const ChatScreen(),
-        MenuScreenWrapper(),
+        MenuScreen(),
         ProfileScreen(),
       ];
 

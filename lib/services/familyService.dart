@@ -87,14 +87,14 @@ class FamilyService {
       if (families.isEmpty)
         throw Exception("User does not belong to any family.");
 
-      return await getFamilyById(families.first);
+      return await getFamilyByCode(families.first);
     } catch (e) {
       print("❌ Error fetching family data: $e");
       return null;
     }
   }
 
-  Future<FamilyModel?> getFamilyById(String familyCode) async {
+  Future<FamilyModel?> getFamilyByCode(String familyCode) async {
     try {
       DocumentSnapshot familySnapshot =
           await _familiesCollection.doc(familyCode).get();
@@ -126,7 +126,7 @@ class FamilyService {
 
   Future<void> removeMember(String familyCode, String userEmail) async {
     try {
-      FamilyModel? family = await getFamilyById(familyCode);
+      FamilyModel? family = await getFamilyByCode(familyCode);
       if (family == null) throw Exception("Family does not exist.");
 
       FamilyModel updatedFamily = family.copyWith(
@@ -144,6 +144,25 @@ class FamilyService {
       }
     } catch (e) {
       print("❌ Error removing member: $e");
+    }
+  }
+
+  Future<void> removeFamilyFromUserFamilies(
+      String familyCode, String adminEmail) async {
+    final usersSnapshot = await _firestore.collection('users').get();
+
+    for (var doc in usersSnapshot.docs) {
+      final userData = doc.data();
+      final List<dynamic>? families = userData['families'];
+
+      if (families != null && families.contains(familyCode)) {
+        if (doc.id != adminEmail) {
+          await _firestore.collection('users').doc(doc.id).update({
+            'families': FieldValue.arrayRemove([familyCode])
+          });
+          print("✅ Removed $familyCode from ${doc.id}");
+        }
+      }
     }
   }
 
@@ -247,6 +266,7 @@ class FamilyService {
       final existing = await _firestore
           .collection('families')
           .where('adminEmail', isEqualTo: adminEmail)
+          .where('isDeleted', isEqualTo: false)
           .get();
 
       if (existing.docs.isEmpty) {

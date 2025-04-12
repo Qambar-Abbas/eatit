@@ -1,24 +1,27 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eatit/models/userModel.dart';
+import 'package:eatit/riverpods/familyriverpod.dart';
 import 'package:eatit/ui/homeNavigationBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../services/platformService.dart';
 import '../../services/userService.dart';
 
-class SignInScreen extends StatefulWidget {
+class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
 
   @override
-  _SignInScreenState createState() => _SignInScreenState();
+  ConsumerState<SignInScreen> createState() => _SignInScreenState();
 }
 
-class _SignInScreenState extends State<SignInScreen> {
+class _SignInScreenState extends ConsumerState<SignInScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _googleSignIn = GoogleSignIn();
-
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
   UserService userService = UserService();
@@ -102,32 +105,42 @@ class _SignInScreenState extends State<SignInScreen> {
 
       final UserCredential userCredential =
           await _auth.signInWithCredential(credential);
+      final User? firebaseUser = userCredential.user;
 
-      if (userCredential.user != null) {
+      if (firebaseUser != null) {
+        // Check if there's an existing Firestore user document
+        UserModel? existingUser =
+            await userService.getUserData(firebaseUser.email!);
+
+        if (existingUser != null && (existingUser.isDeleted ?? false)) {
+          // If exists and is marked as deleted, prompt the user.
+          final result = await _showExistingGoogleAccountDialog(firebaseUser);
+          if (result) {
+            ref.invalidate(userFamiliesProvider(firebaseUser.email!));
+            if (mounted) setState(() {});
+          }
+          return; // Let the dialog handle the next steps.
+        }
+
         if (userCredential.additionalUserInfo?.isNewUser ?? false) {
-          // For new users, show a welcome message
+          // For new users, show a welcome message.
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
                 content: Text(
                     'Welcome! Your account has been created using Google.')),
           );
-
-          // Store the user and navigate immediately
-          await userService.storeUserInFirestore(userCredential.user!);
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) =>
-                  HomeNavigationBar(user: userCredential.user!),
-            ),
-          );
-        } else {
-          // For existing users, show the dialog and exit early
-          _showExistingGoogleAccountDialog(userCredential.user!);
-          // return;
         }
-        UserModel user = UserModel.fromFirebaseUser(userCredential.user!);
-        UserService().storeUserLocally(user);
+
+        // For active accounts, update Firestore if needed.
+        await userService.storeUserInFirestore(firebaseUser);
+        UserModel user = UserModel.fromFirebaseUser(firebaseUser);
+        await userService.storeUserLocally(user);
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HomeNavigationBar(user: firebaseUser),
+          ),
+        );
       }
     } on FirebaseAuthException catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -146,51 +159,78 @@ class _SignInScreenState extends State<SignInScreen> {
     }
   }
 
-  void _showExistingGoogleAccountDialog(User user) {
-    showDialog(
+  Future<bool> _showExistingGoogleAccountDialog(User firebaseUser) async {
+    final result = await showDialog(
       context: context,
-      barrierDismissible:
-          false, // Ensures the dialog remains open until a selection is made
+      barrierDismissible: false, // Force a selection.
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Google Account Already Linked'),
+          title: Text('Restore or Create New Account?'),
           content: Text(
-              'This Google account is already linked to an existing account. Would you like to continue with your existing account or use a different Google account?'),
+            'A previously deleted account was found for this Google account. '
+            'Would you like to restore your old account (revive) or create a new one?',
+          ),
           actions: [
+            // Revive the old account (i.e. set isDeleted to false only)
             TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close the dialog
-
+              onPressed: () async {
+                Navigator.of(context).pop(true); // Close the dialog.
+                // Retrieve the existing user document first.
+                UserModel? existingUser =
+                    await userService.getUserData(firebaseUser.email!);
+                if (existingUser != null) {
+                  // For reviving, update only the isDeleted flag to false.
+                  Map<String, dynamic> updatedData = existingUser.toJson();
+                  updatedData['isDeleted'] = false; // Revive the account
+                  await _firestore
+                      .collection('users')
+                      .doc(firebaseUser.email)
+                      .update(updatedData);
+                } else {
+                  // In an unlikely case it disappeared, fallback to full store.
+                  await userService.storeUserInFirestore(firebaseUser);
+                }
+                UserModel revivedUser =
+                    UserModel.fromFirebaseUser(firebaseUser);
+                await userService.storeUserLocally(revivedUser);
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                      content: Text('Successfully signed in with Google!')),
+                      content: Text('Your previous account has been revived.')),
                 );
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => HomeNavigationBar(user: user),
+                    builder: (context) => HomeNavigationBar(user: firebaseUser),
                   ),
                 );
               },
-              child: Text('Continue with this Account'),
+              child: Text('Revive Old Account'),
             ),
+            // Create new account (override old document)
             TextButton(
               onPressed: () async {
-                Navigator.pop(context); // Close the dialog
-                await _googleSignIn
-                    .signOut(); // Sign out to allow account selection
+                Navigator.of(context).pop(true); // Close the dialog.
+                // Override the old record by calling storeUserInFirestore to create new account data.
+                await userService.storeUserInFirestore(firebaseUser);
+                UserModel newUser = UserModel.fromFirebaseUser(firebaseUser);
+                await userService.storeUserLocally(newUser);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content:
-                          Text('Please select a different Google account.')),
+                  SnackBar(content: Text('A new account has been created.')),
+                );
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => HomeNavigationBar(user: firebaseUser),
+                  ),
                 );
               },
-              child: Text('Use a Different Account'),
+              child: Text('Create New Account'),
             ),
           ],
         );
       },
     );
+    return result;
   }
 
   /// ************

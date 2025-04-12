@@ -5,12 +5,19 @@ Whether you're cooking for yourself, your family, or hosting a dinner party, Men
 
 Changelog:
 
+
+[v1.8.7]
+bugs:
+delete account method sets isDeleted to true without firebase recent autherntication,
+isDeleted user should'nt be able to use app,
+delete account method should remove user from all families, mark the cook as null,
+
 [v1.8.6]
 Show select family at food search and chat room,
 fix profile photo,
 Seprate admin's family,
 
-family list is retained in the users collection after removing member.
+family list is retained in the users collection after removing member. done
 
 
 [v1.8.5]
