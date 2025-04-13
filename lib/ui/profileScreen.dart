@@ -21,8 +21,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   // late Future<UserModel?> _userModel;
 
   final TextEditingController _joinFamilyController = TextEditingController();
-  final String appVersion = PlatformService.getAppVersion() ?? 'NA';
-  final String platform = PlatformService.getPlatform() ?? 'NA';
+  final String appVersion = PlatformService.getAppVersion();
+  final String platform = PlatformService.getPlatform();
 
   @override
   void initState() {
@@ -104,7 +104,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Widget _buildEndDrawer(UserModel user, WidgetRef ref) {
     return Drawer(
-      child: SafeArea(
+      child: Theme(
+        data: Theme.of(context).copyWith(
+          canvasColor: Colors.transparent,
+        ),
         child: Column(
           children: [
             Expanded(
@@ -119,7 +122,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 10),
                   _buildDeleteFamilyButton(context, user),
                   const Divider(),
-                  _buildLogoutSection(user),
+                  _buildLogoutButton(user),
+                  const SizedBox(height: 10),
+                  _buildDeleteAccountButton(user),
                 ],
               ),
             ),
@@ -316,121 +321,143 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildLogoutSection(UserModel user) {
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () {
-              UserService().logout();
-              Navigator.pushReplacement<void, void>(
-                context,
-                MaterialPageRoute<void>(
-                  builder: (BuildContext context) => const SignInScreen(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.logout),
-            label: const Text("Logout"),
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 12),
+  Widget _buildLogoutButton(UserModel user) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _handleLogout(user),
+        icon: const Icon(Icons.logout),
+        label: const Text("Logout"),
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleLogout(UserModel user) async {
+    final confirmed = await _showConfirmationDialog(
+      context,
+      title: "Confirm Logout",
+      content: "Are you sure you want to logout?",
+      confirmLabel: "Logout",
+    );
+
+    if (confirmed != true) return;
+
+    await UserService().logout();
+
+    final container = ProviderContainer();
+    container.dispose();
+
+    ref.invalidate(userFamiliesProvider(user.email!));
+
+    if (mounted) setState(() {});
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const SignInScreen()),
+    );
+  }
+
+  Widget _buildDeleteAccountButton(UserModel user) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () => _handleAccountDeletion(user),
+        icon: const Icon(Icons.delete),
+        label: const Text("Delete Account"),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red,
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleAccountDeletion(UserModel user) async {
+    final confirmed = await _showConfirmationDialog(
+      context,
+      title: "Are you sure?",
+      content:
+          "Deleting your account is permanent. All your data will be removed. Do you want to continue?",
+      confirmLabel: "Delete",
+      confirmLabelColor: Colors.red,
+    );
+
+    if (confirmed != true) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    try {
+      await UserService().deleteUserAccountWithGoogle();
+      await UserService().logout();
+
+      Navigator.of(context).pop(); // dismiss loading
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Account deleted successfully.")),
+      );
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const SignInScreen()),
+        (route) => false,
+      );
+    } on FirebaseAuthException catch (e) {
+      Navigator.of(context).pop();
+
+      if (e.code == 'reauthentication-required') {
+        _showSnackBar("Please reauthenticate to delete your account.");
+      } else {
+        _showSnackBar("Auth error: ${e.message}");
+      }
+    } catch (e) {
+      Navigator.of(context).pop();
+      _showSnackBar("Error: ${e.toString()}");
+    }
+
+    final container = ProviderContainer();
+    container.dispose();
+
+    ref.invalidate(userFamiliesProvider(user.email!));
+    if (mounted) setState(() {});
+  }
+
+  Future<bool?> _showConfirmationDialog(
+    BuildContext context, {
+    required String title,
+    required String content,
+    String confirmLabel = "Confirm",
+    Color? confirmLabelColor,
+  }) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(content),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(
+              confirmLabel,
+              style: TextStyle(color: confirmLabelColor),
             ),
           ),
-        ),
-        const SizedBox(height: 10),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () async {
-              final confirmed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text("Are you sure?"),
-                  content: const Text(
-                      "Deleting your account is permanent. All your data will be removed. Do you want to continue?"),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, false),
-                      child: const Text("Cancel"),
-                    ),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text(
-                        "Delete",
-                        style: TextStyle(color: Colors.red),
-                      ),
-                    ),
-                  ],
-                ),
-              );
+        ],
+      ),
+    );
+  }
 
-              if (confirmed == true) {
-                showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (_) => const Center(
-                    child: CircularProgressIndicator(),
-                  ),
-                );
-
-                try {
-                  await UserService().deleteUserAccountWithGoogle();
-                  await UserService().logout();
-
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Account deleted successfully."),
-                    ),
-                  );
-
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(builder: (_) => const SignInScreen()),
-                    (route) => false,
-                  );
-                } on FirebaseAuthException catch (e) {
-                  Navigator.of(context).pop();
-
-                  if (e.code == 'reauthentication-required') {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                            "Please reauthenticate to delete your account."),
-                      ),
-                    );
-                  } else {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Auth error: ${e.message}')),
-                    );
-                  }
-                } catch (e) {
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: ${e.toString()}')),
-                  );
-                }
-                if (confirmed != null && confirmed) {
-                  // ref.invalidate(userFamiliesProvider(user.email!));
-                  final container = ProviderContainer();
-
-                  container.dispose();
-
-                  if (mounted) setState(() {});
-                }
-              }
-              ref.invalidate(userFamiliesProvider(user.email!));
-              if (mounted) setState(() {});
-            },
-            icon: const Icon(Icons.delete),
-            label: const Text("Delete Account"),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-            ),
-          ),
-        ),
-      ],
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
     );
   }
 
