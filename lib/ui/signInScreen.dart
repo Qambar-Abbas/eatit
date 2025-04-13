@@ -18,16 +18,14 @@ class SignInScreen extends ConsumerStatefulWidget {
 }
 
 class _SignInScreenState extends ConsumerState<SignInScreen> {
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
   final _googleSignIn = GoogleSignIn();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
 
   UserService userService = UserService();
 
-  String? appVersion = PlatformService.getAppVersion() ?? 'NA';
-  String? platform = PlatformService.getPlatform() ?? 'NA';
+  String? appVersion = PlatformService.getAppVersion();
+  String? platform = PlatformService.getPlatform();
 
   bool _isLoading = false;
 
@@ -43,30 +41,10 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              TextField(
-                controller: _emailController,
-                decoration: InputDecoration(labelText: 'Email'),
-                keyboardType: TextInputType.emailAddress,
-              ),
-              TextField(
-                controller: _passwordController,
-                decoration: InputDecoration(labelText: 'Password'),
-                obscureText: true,
-              ),
               SizedBox(height: 20),
               if (_isLoading)
                 CircularProgressIndicator()
               else ...[
-                ElevatedButton(
-                  onPressed: _signInWithEmail,
-                  child: Text('Sign In with Email'),
-                ),
-                SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: _signUpWithEmail,
-                  child: Text('Sign Up with Email'),
-                ),
-                SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: _signInWithGoogle,
                   child: Text('Sign In with Google'),
@@ -81,21 +59,19 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   }
 
   Future<void> _signInWithGoogle() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+    _setLoading(true);
     try {
-      await _googleSignIn.signOut(); // Ensure no previous session
+      // Ensure any previous Google sign-in session is cleared
+      await _googleSignIn.signOut();
 
+      // Initiate the sign-in flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Google Sign-In canceled")),
-        );
+        _showSnackBar("Google Sign-In canceled");
         return;
       }
 
+      // Obtain auth details
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
@@ -103,241 +79,139 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         idToken: googleAuth.idToken,
       );
 
+      // Sign in with Firebase using the Google credentials
       final UserCredential userCredential =
           await _auth.signInWithCredential(credential);
       final User? firebaseUser = userCredential.user;
 
       if (firebaseUser != null) {
-        // Check if there's an existing Firestore user document
-        UserModel? existingUser =
-            await userService.getUserData(firebaseUser.email!);
-
-        if (existingUser != null && (existingUser.isDeleted ?? false)) {
-          // If exists and is marked as deleted, prompt the user.
-          final result = await _showExistingGoogleAccountDialog(firebaseUser);
-          if (result) {
-            ref.invalidate(userFamiliesProvider(firebaseUser.email!));
-            if (mounted) setState(() {});
-          }
-          return; // Let the dialog handle the next steps.
-        }
-
-        if (userCredential.additionalUserInfo?.isNewUser ?? false) {
-          // For new users, show a welcome message.
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-                content: Text(
-                    'Welcome! Your account has been created using Google.')),
-          );
-        }
-
-        // For active accounts, update Firestore if needed.
-        await userService.storeUserInFirestore(firebaseUser);
-        UserModel user = UserModel.fromFirebaseUser(firebaseUser);
-        await userService.storeUserLocally(user);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => HomeNavigationBar(user: firebaseUser),
-          ),
-        );
+        await _handleFirebaseUser(firebaseUser, userCredential);
       }
     } on FirebaseAuthException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-            content:
-                Text(e.message ?? 'Google sign-in failed. Please try again.')),
-      );
+      _showSnackBar(e.message ?? 'Google sign-in failed. Please try again.');
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An unexpected error occurred: $e')),
-      );
+      _showSnackBar('An unexpected error occurred: $e');
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      _setLoading(false);
     }
   }
 
+  Future<void> _handleFirebaseUser(
+      User firebaseUser, UserCredential userCredential) async {
+    // Check for an existing Firestore user document
+    final UserModel? existingUser =
+        await userService.getUserData(firebaseUser.email!);
+
+    // If an existing account is deleted, ask the user whether to revive it.
+    if (existingUser != null && existingUser.isDeleted) {
+      final bool shouldRevive =
+          await _showExistingGoogleAccountDialog(firebaseUser);
+      if (shouldRevive) {
+        ref.invalidate(userFamiliesProvider(firebaseUser.email!));
+        // Do not proceed further; navigation is already handled in the dialog flow.
+        return;
+      }
+    }
+
+    // Welcome message for new accounts
+    if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+      _showSnackBar('Welcome! Your account has been created using Google.');
+    }
+
+    // Update local and remote data for active accounts
+    final UserModel user = UserModel.fromFirebaseUser(firebaseUser);
+    await userService.storeUserLocally(user);
+    _navigateToHome(firebaseUser);
+  }
+
   Future<bool> _showExistingGoogleAccountDialog(User firebaseUser) async {
-    final result = await showDialog(
+    final bool? result = await showDialog<bool>(
       context: context,
-      barrierDismissible: false, // Force a selection.
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Restore or Create New Account?'),
-          content: Text(
+          title: const Text('Restore or Create New Account?'),
+          content: const Text(
             'A previously deleted account was found for this Google account. '
             'Would you like to restore your old account (revive) or create a new one?',
           ),
           actions: [
-            // Revive the old account (i.e. set isDeleted to false only)
+            // Revive Old Account
             TextButton(
               onPressed: () async {
-                Navigator.of(context).pop(true); // Close the dialog.
-                // Retrieve the existing user document first.
-                UserModel? existingUser =
-                    await userService.getUserData(firebaseUser.email!);
-                if (existingUser != null) {
-                  // For reviving, update only the isDeleted flag to false.
-                  Map<String, dynamic> updatedData = existingUser.toJson();
-                  updatedData['isDeleted'] = false; // Revive the account
-                  await _firestore
-                      .collection('users')
-                      .doc(firebaseUser.email)
-                      .update(updatedData);
-                } else {
-                  // In an unlikely case it disappeared, fallback to full store.
-                  await userService.storeUserInFirestore(firebaseUser);
-                }
-                UserModel revivedUser =
-                    UserModel.fromFirebaseUser(firebaseUser);
-                await userService.storeUserLocally(revivedUser);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                      content: Text('Your previous account has been revived.')),
-                );
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => HomeNavigationBar(user: firebaseUser),
-                  ),
-                );
+                Navigator.of(context)
+                    .pop(true); // Close the dialog and return true.
+                await _reviveAccount(firebaseUser);
               },
-              child: Text('Revive Old Account'),
+              child: const Text('Revive Old Account'),
             ),
-            // Create new account (override old document)
+            // Create New Account
             TextButton(
               onPressed: () async {
-                Navigator.of(context).pop(true); // Close the dialog.
-                // Override the old record by calling storeUserInFirestore to create new account data.
-                await userService.storeUserInFirestore(firebaseUser);
-                UserModel newUser = UserModel.fromFirebaseUser(firebaseUser);
-                await userService.storeUserLocally(newUser);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('A new account has been created.')),
-                );
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => HomeNavigationBar(user: firebaseUser),
-                  ),
-                );
+                Navigator.of(context)
+                    .pop(true); // Close the dialog and return true.
+                await _createNewAccount(firebaseUser);
               },
-              child: Text('Create New Account'),
+              child: const Text('Create New Account'),
             ),
           ],
         );
       },
     );
-    return result;
+    return result ?? false;
   }
 
-  /// ************
-  /// these methods will be used later
-
-  @Deprecated("will be used later")
-  Future<void> _signInWithEmail() async {
-    setState(() {
-      _isLoading = true;
-    });
-
-    try {
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Successfully signed in with email!")),
-      );
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeNavigationBar(user: userCredential.user!),
-        ),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('No user found with this email. Please sign up.')),
-        );
-      } else if (e.code == 'wrong-password') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Incorrect password. Please try again.')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(e.message ?? 'An error occurred. Please try again.')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An unexpected error occurred: $e')),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
+  /// Revives an existing (soft-deleted) account.
+  Future<void> _reviveAccount(User firebaseUser) async {
+    final UserModel? existingUser =
+        await userService.getUserData(firebaseUser.email!);
+    if (existingUser != null) {
+      final Map<String, dynamic> updatedData = existingUser.toJson()
+        ..['isDeleted'] = false;
+      await _firestore
+          .collection('users')
+          .doc(firebaseUser.email)
+          .update(updatedData);
+    } else {
+      // Fallback if the record is missing.
+      await userService.storeUserInFirestore(firebaseUser);
     }
+    final UserModel revivedUser = UserModel.fromFirebaseUser(firebaseUser);
+    await userService.storeUserLocally(revivedUser);
+    _showSnackBar('Your previous account has been revived.');
+    _navigateToHome(firebaseUser);
   }
 
-  @Deprecated("will be used later")
-  Future<void> _signUpWithEmail() async {
+  /// Creates a new account by overriding the old document.
+  Future<void> _createNewAccount(User firebaseUser) async {
+    await userService.storeUserInFirestore(firebaseUser);
+    final UserModel newUser = UserModel.fromFirebaseUser(firebaseUser);
+    await userService.storeUserLocally(newUser);
+    _showSnackBar('A new account has been created.');
+    _navigateToHome(firebaseUser);
+  }
+
+  /// Helper method to navigate to the home screen.
+  void _navigateToHome(User firebaseUser) {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => HomeNavigationBar(user: firebaseUser),
+      ),
+    );
+  }
+
+  /// Helper method to show a snackbar with a provided message.
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+
+  /// Helper method to update the loading state.
+  void _setLoading(bool isLoading) {
     setState(() {
-      _isLoading = true;
+      _isLoading = isLoading;
     });
-
-    try {
-      UserCredential userCredential =
-          await _auth.createUserWithEmailAndPassword(
-        email: _emailController.text,
-        password: _passwordController.text,
-      );
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Account Created Successfully")),
-      );
-
-      await userService.storeUserInFirestore(userCredential.user!);
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => HomeNavigationBar(user: userCredential.user!),
-        ),
-      );
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'email-already-in-use') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Email is already in use. Do you want to sign in or create a new account?'),
-            action: SnackBarAction(
-              label: 'Sign In',
-              onPressed: () {
-                _signInWithEmail();
-              },
-            ),
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content:
-                  Text(e.message ?? 'An error occurred. Please try again.')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('An unexpected error occurred: $e')),
-      );
-    } finally {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
 }

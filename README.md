@@ -5,10 +5,24 @@ Whether you're cooking for yourself, your family, or hosting a dinner party, Men
 
 Changelog:
 
+[v1.8.8]
+
 
 [v1.8.7]
+changes made:
+Split sign-in logic into modular helper functions,
+Added dedicated error handling for Firebase and general exceptions,
+Separated UI logic from business logic,
+Used descriptive method and variable names,
+Improved code readability and maintainability,
+Centralized loading state and snackbar handling,
+Moved navigation logic into a dedicated method,
+Added comments for clarity and future reference,
+
+changes to be done:
+make the drawer translucent,
+
 bugs:
-delete account method sets isDeleted to true without firebase recent autherntication,
 isDeleted user should'nt be able to use app,
 delete account method should remove user from all families, mark the cook as null,
 
