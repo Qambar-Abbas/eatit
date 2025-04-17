@@ -260,7 +260,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
           );
           ref.invalidate(userFamiliesProvider(user.email!));
-          setState(() {});
+          // setState(() {});
         } catch (e) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -310,7 +310,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         );
         if (result == 'deleted') {
           ref.invalidate(userFamiliesProvider(user.email!));
-          if (mounted) setState(() {});
         }
       },
       icon: const Icon(Icons.delete),
@@ -351,12 +350,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     container.dispose();
 
     ref.invalidate(userFamiliesProvider(user.email!));
+    // if (mounted) setState(() {});
 
-    if (mounted) setState(() {});
-
-    Navigator.pushReplacement(
-      context,
+    Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const SignInScreen()),
+      (route) => false,
     );
   }
 
@@ -378,9 +376,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Future<void> _handleAccountDeletion(UserModel user) async {
     final confirmed = await _showConfirmationDialog(
       context,
-      title: "Are you sure?",
-      content:
-          "Deleting your account is permanent. All your data will be removed. Do you want to continue?",
+      title: "Are you sure you want to delete your account?",
+      content: "All your data will be removed. Do you want to continue?",
       confirmLabel: "Delete",
       confirmLabelColor: Colors.red,
     );
@@ -397,7 +394,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       await UserService().deleteUserAccountWithGoogle();
       await UserService().logout();
 
-      Navigator.of(context).pop(); // dismiss loading
+      Navigator.of(context).pop();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Account deleted successfully.")),
       );
@@ -423,14 +420,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     container.dispose();
 
     ref.invalidate(userFamiliesProvider(user.email!));
-    if (mounted) setState(() {});
+    // if (mounted) setState(() {});
   }
 
   Future<bool?> _showConfirmationDialog(
     BuildContext context, {
     required String title,
     required String content,
-    String confirmLabel = "Confirm",
+    String confirmLabel = "",
     Color? confirmLabelColor,
   }) {
     return showDialog<bool>(

@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class UserService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final _googleSignIn = GoogleSignIn();
 
   Future<void> storeUserInFirestore(User user) async {
     try {
@@ -144,7 +145,8 @@ class UserService {
 
   Future<void> logout() async {
     try {
-      await _auth.signOut();
+      await _googleSignIn.disconnect();
+      await _googleSignIn.signOut();
       SharedPreferences prefs = await SharedPreferences.getInstance();
       await prefs.clear();
       print("✅ User logged out and local data cleared.");
