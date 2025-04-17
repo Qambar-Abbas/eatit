@@ -14,7 +14,7 @@ class UserService {
   Future<void> storeUserInFirestore(User user) async {
     try {
       DocumentReference userRef =
-          _firestore.collection('users').doc(user.email);
+          _firestore.collection('users_collection').doc(user.email);
       UserModel userModel = UserModel(
         uid: user.uid,
         displayName: user.displayName,
@@ -32,13 +32,13 @@ class UserService {
     }
   }
 
-  Future<void> updateUserFamilies({
+  Future<void> addOrRemoveUserFamilies({
     required String userEmail,
     required String familyCode,
     required bool add,
   }) async {
     final DocumentReference userDoc =
-        _firestore.collection('users').doc(userEmail);
+        _firestore.collection('users_collection').doc(userEmail);
 
     try {
       if (add) {
@@ -61,7 +61,7 @@ class UserService {
   Future<UserModel?> getUserData(String email) async {
     try {
       DocumentSnapshot<Map<String, dynamic>> doc =
-          await _firestore.collection('users').doc(email).get();
+          await _firestore.collection('users_collection').doc(email).get();
       return doc.exists ? UserModel.fromJson(doc.data()!) : null;
     } catch (e) {
       print("❌ Error fetching user data: $e");
@@ -76,7 +76,7 @@ class UserService {
 
       UserModel updatedUser = user.addFamily(familyCode);
       await _firestore
-          .collection('users')
+          .collection('users_collection')
           .doc(email)
           .update(updatedUser.toJson());
       print("✅ Family added successfully.");
@@ -93,7 +93,7 @@ class UserService {
 
       UserModel updatedUser = user.removeFamily(familyCode);
       await _firestore
-          .collection('users')
+          .collection('users_collection')
           .doc(email)
           .update(updatedUser.toJson());
       print("✅ Family removed successfully.");
@@ -166,55 +166,15 @@ class UserService {
     final String email = user.email ?? '';
 
     try {
-      final GoogleSignIn googleSignIn = GoogleSignIn();
-      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
-      if (googleUser == null) {
-        throw FirebaseAuthException(
-          code: 'sign-in-cancelled',
-          message: 'Google Sign-In was cancelled.',
-        );
-      }
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final AuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-      await user.reauthenticateWithCredential(credential);
-      print("✅ Google user reauthenticated.");
-
+      await reauthenticateUserForDeletion(user);
       WriteBatch batch = _firestore.batch();
-      DocumentReference userRef = _firestore.collection('users').doc(email);
+      DocumentReference userRef = _firestore.collection('users_collection').doc(email);
 
-      QuerySnapshot nonAdminFamiliesSnapshot = await _firestore
-          .collection('families')
-          .where('members', arrayContains: {'email': email}).get();
-      for (var familyDoc in nonAdminFamiliesSnapshot.docs) {
-        final data = familyDoc.data() as Map<String, dynamic>;
+      //Remove member from all list of families
+      await _removeUserFromAllFamilies(email, batch, user);
 
-        if ((data['adminEmail'] ?? '') != email) {
-          batch.update(familyDoc.reference, {
-            'members': FieldValue.arrayRemove([
-              {'email': email, 'name': user.displayName}
-            ])
-          });
-        }
-      }
-
-      QuerySnapshot adminFamilyQuery = await _firestore
-          .collection('families')
-          .where('adminEmail', isEqualTo: email)
-          .where('isDeleted', isEqualTo: false)
-          .limit(1)
-          .get();
-      if (adminFamilyQuery.docs.isNotEmpty) {
-        DocumentReference adminFamilyRef =
-            adminFamilyQuery.docs.first.reference;
-        batch.update(adminFamilyRef, {'isDeleted': true});
-
-        await FamilyService()
-            .removeFamilyFromUserFamilies(adminFamilyRef.id, email);
-      }
+      // Deleting the family created by the user
+      await _deleteFamilyForAdminUser(email, batch);
 
       batch.update(userRef, {'isDeleted': true});
 
@@ -228,6 +188,76 @@ class UserService {
     } catch (e) {
       print("❌ Unexpected error during logical deletion: $e");
       rethrow;
+    }
+  }
+
+  Future<void> _removeUserFromAllFamilies(String email, WriteBatch batch, User user) async {
+    QuerySnapshot nonAdminFamiliesSnapshot = await _firestore
+        .collection('families_collection')
+        .where('members', arrayContains: {'email': email}).get();
+    for (var familyDoc in nonAdminFamiliesSnapshot.docs) {
+      final data = familyDoc.data() as Map<String, dynamic>;
+
+      if ((data['adminEmail'] ?? '') != email) {
+        batch.update(familyDoc.reference, {
+          'members': FieldValue.arrayRemove([
+            {'email': email, 'name': user.displayName}
+          ])
+        });
+      }
+    }
+  }
+
+  Future<void> _deleteFamilyForAdminUser(String email, WriteBatch batch) async {
+    QuerySnapshot adminFamilyQuery = await _firestore
+        .collection('families_collection')
+        .where('adminEmail', isEqualTo: email)
+        .where('isDeleted', isEqualTo: false)
+        .get();
+    if (adminFamilyQuery.docs.isNotEmpty) {
+      DocumentReference adminFamilyRef =
+          adminFamilyQuery.docs.first.reference;
+      batch.update(adminFamilyRef, {'isDeleted': true});
+      await disconnectUserFromFamily(adminFamilyRef.id, email);
+
+    }
+  }
+
+  Future<void> reauthenticateUserForDeletion(User user) async {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
+    final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+    if (googleUser == null) {
+      throw FirebaseAuthException(
+        code: 'sign-in-cancelled',
+        message: 'Google Sign-In was cancelled.',
+      );
+    }
+    final GoogleSignInAuthentication googleAuth =
+        await googleUser.authentication;
+    final AuthCredential credential = GoogleAuthProvider.credential(
+      accessToken: googleAuth.accessToken,
+      idToken: googleAuth.idToken,
+    );
+    await user.reauthenticateWithCredential(credential);
+    print("✅ Google user reauthenticated.");
+  }
+
+  Future<void> disconnectUserFromFamily(
+      String familyCode, String adminEmail) async {
+    final usersSnapshot = await _firestore.collection('users_collection').get();
+
+    for (var doc in usersSnapshot.docs) {
+      final userData = doc.data();
+      final List<dynamic>? families = userData['families'];
+
+      if (families != null && families.contains(familyCode)) {
+        if (doc.id != adminEmail) {
+          await _firestore.collection('users_collection').doc(doc.id).update({
+            'families': FieldValue.arrayRemove([familyCode])
+          });
+          print("✅ Removed $familyCode from ${doc.id}");
+        }
+      }
     }
   }
 }

@@ -175,7 +175,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             }
 
             try {
-              final family = await FamilyService().getFamilyByCode(familyCode);
+              final family = await FamilyService().getFamilyByCodeFromFirebase(familyCode);
 
               if (family == null || family.isDeleted == true) {
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -198,8 +198,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 return;
               }
 
-              await FamilyService().updateFamilyMembers(
-                familyDocId: familyCode,
+              await FamilyService().addOrRemoveFamilyMembers(
+                familyCode: familyCode,
                 member: {
                   'email': user.email!,
                   'name': user.displayName!,
@@ -207,7 +207,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 add: true,
               );
 
-              await UserService().updateUserFamilies(
+              await UserService().addOrRemoveUserFamilies(
                 userEmail: user.email!,
                 familyCode: familyCode,
                 add: true,
@@ -238,7 +238,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return ElevatedButton.icon(
       onPressed: () async {
         try {
-          await FamilyService().createFamily(
+          await FamilyService().createAndStoreFamilyInFirebase(
             FamilyModel(
               familyName: "${user.displayName}'s Family",
               adminEmail: user.email!,
@@ -295,8 +295,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   child: const Text("Cancel"),
                 ),
                 TextButton(
-                  onPressed: () {
-                    FamilyService().deleteFamilyAsAdmin(user.email!);
+                  onPressed: (){   FamilyService().deleteAdminFamily(user.email!);
                     Navigator.of(context).pop('deleted');
                   },
                   child: const Text(

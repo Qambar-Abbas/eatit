@@ -116,6 +116,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     // Update local and remote data for active accounts
     final UserModel user = UserModel.fromFirebaseUser(firebaseUser);
+    ref.invalidate(userFamiliesProvider(user.email!));
     await userService.storeUserLocally(user);
     _navigateToHome(user);
 
@@ -166,7 +167,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       final Map<String, dynamic> updatedData = existingUser.toJson()
         ..['isDeleted'] = false;
       await _firestore
-          .collection('users')
+          .collection('users_collection')
           .doc(firebaseUser.email)
           .update(updatedData);
     } else {
