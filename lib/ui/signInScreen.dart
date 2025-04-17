@@ -61,31 +61,25 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   Future<void> _signInWithGoogle() async {
     _setLoading(true);
     try {
-      // Ensure any previous Google sign-in session is cleared
-      await _googleSignIn.signOut();
-
       // Initiate the sign-in flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       if (googleUser == null) {
         _showSnackBar("Google Sign-In canceled");
         return;
       }
-
       // Obtain auth details
-      final GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
         accessToken: googleAuth.accessToken,
         idToken: googleAuth.idToken,
       );
 
       // Sign in with Firebase using the Google credentials
-      final UserCredential userCredential =
-          await _auth.signInWithCredential(credential);
-      final User? firebaseUser = userCredential.user;
+      final UserCredential userCredential = await _auth.signInWithCredential(credential);
+      final User? user = userCredential.user;
 
-      if (firebaseUser != null) {
-        await _handleFirebaseUser(firebaseUser, userCredential);
+      if (user != null) {
+        await _handleFirebaseOperations(user, userCredential);
       }
     } on FirebaseAuthException catch (e) {
       _showSnackBar(e.message ?? 'Google sign-in failed. Please try again.');
@@ -96,7 +90,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     }
   }
 
-  Future<void> _handleFirebaseUser(
+  Future<void> _handleFirebaseOperations(
       User firebaseUser, UserCredential userCredential) async {
     // Check for an existing Firestore user document
     final UserModel? existingUser =
@@ -107,6 +101,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       final bool shouldRevive =
           await _showExistingGoogleAccountDialog(firebaseUser);
       if (shouldRevive) {
+        // set user isDeleted families to false here
         ref.invalidate(userFamiliesProvider(firebaseUser.email!));
         // Do not proceed further; navigation is already handled in the dialog flow.
         return;
@@ -115,13 +110,16 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
     // Welcome message for new accounts
     if (userCredential.additionalUserInfo?.isNewUser ?? false) {
+      await userService.storeUserInFirestore(firebaseUser);
       _showSnackBar('Welcome! Your account has been created using Google.');
     }
 
     // Update local and remote data for active accounts
     final UserModel user = UserModel.fromFirebaseUser(firebaseUser);
+    ref.invalidate(userFamiliesProvider(user.email!));
     await userService.storeUserLocally(user);
-    _navigateToHome(firebaseUser);
+    _navigateToHome(user);
+
   }
 
   Future<bool> _showExistingGoogleAccountDialog(User firebaseUser) async {
@@ -169,7 +167,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
       final Map<String, dynamic> updatedData = existingUser.toJson()
         ..['isDeleted'] = false;
       await _firestore
-          .collection('users')
+          .collection('users_collection')
           .doc(firebaseUser.email)
           .update(updatedData);
     } else {
@@ -179,7 +177,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final UserModel revivedUser = UserModel.fromFirebaseUser(firebaseUser);
     await userService.storeUserLocally(revivedUser);
     _showSnackBar('Your previous account has been revived.');
-    _navigateToHome(firebaseUser);
+    _navigateToHome(revivedUser);
   }
 
   /// Creates a new account by overriding the old document.
@@ -188,15 +186,15 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     final UserModel newUser = UserModel.fromFirebaseUser(firebaseUser);
     await userService.storeUserLocally(newUser);
     _showSnackBar('A new account has been created.');
-    _navigateToHome(firebaseUser);
+    _navigateToHome(newUser);
   }
 
   /// Helper method to navigate to the home screen.
-  void _navigateToHome(User firebaseUser) {
+  void _navigateToHome(UserModel user) {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => HomeNavigationBar(user: firebaseUser),
+        builder: (context) => HomeNavigationBar(user: user),
       ),
     );
   }

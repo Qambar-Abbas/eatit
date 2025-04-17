@@ -6,12 +6,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 class FamilyService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CollectionReference _familiesCollection =
-      FirebaseFirestore.instance.collection('families');
+      FirebaseFirestore.instance.collection('families_collection');
 
-  Future<void> createFamily(FamilyModel family) async {
+  Future<void> createAndStoreFamilyInFirebase(FamilyModel family) async {
     try {
       final existing = await _firestore
-          .collection('families')
+          .collection('families_collection')
           .where('adminEmail', isEqualTo: family.adminEmail)
           .get();
 
@@ -24,12 +24,13 @@ class FamilyService {
         throw Exception('You have already created a family.');
       }
 
-      DocumentReference docRef = _firestore.collection('families').doc();
+      DocumentReference docRef =
+          _firestore.collection('families_collection').doc();
       final updatedFamily = family.copyWith(familyCode: docRef.id);
 
       await docRef.set(updatedFamily.toJson());
 
-      await UserService().updateUserFamilies(
+      await UserService().addOrRemoveUserFamilies(
         userEmail: family.adminEmail,
         familyCode: docRef.id,
         add: true,
@@ -42,38 +43,7 @@ class FamilyService {
     }
   }
 
-  Future<void> updateFamilyMembers({
-    required String familyDocId,
-    required Map<String, String> member,
-    required bool add,
-  }) async {
-    final DocumentReference familyDoc =
-        _firestore.collection('families').doc(familyDocId);
-    final snapshot = await familyDoc.get();
-    final isDeleted = snapshot.get('isDeleted') as bool;
-    if (!isDeleted) {
-      try {
-        if (add) {
-          await familyDoc.update({
-            'members': FieldValue.arrayUnion([member]),
-          });
-          print("✅ Member added: $member");
-        } else {
-          await familyDoc.update({
-            'members': FieldValue.arrayRemove([member]),
-          });
-          print("✅ Member removed: $member");
-        }
-      } catch (e) {
-        print("❌ Error updating family members: $e");
-        rethrow;
-      }
-    } else {
-      throw Exception("🚫 This family has been deleted.");
-    }
-  }
-
-  Future<FamilyModel?> fetchFamilyData() async {
+  Future<FamilyModel?> fetchFamilyDataFromFirebase() async {
     try {
       String? userEmail = FirebaseAuth.instance.currentUser?.email;
       if (userEmail == null) throw Exception("User not authenticated.");
@@ -87,14 +57,14 @@ class FamilyService {
       if (families.isEmpty)
         throw Exception("User does not belong to any family.");
 
-      return await getFamilyByCode(families.first);
+      return await getFamilyByCodeFromFirebase(families.first);
     } catch (e) {
       print("❌ Error fetching family data: $e");
       return null;
     }
   }
 
-  Future<FamilyModel?> getFamilyByCode(String familyCode) async {
+  Future<FamilyModel?> getFamilyByCodeFromFirebase(String familyCode) async {
     try {
       DocumentSnapshot familySnapshot =
           await _familiesCollection.doc(familyCode).get();
@@ -124,45 +94,61 @@ class FamilyService {
     }
   }
 
-  Future<void> removeMember(String familyCode, String userEmail) async {
-    try {
-      FamilyModel? family = await getFamilyByCode(familyCode);
-      if (family == null) throw Exception("Family does not exist.");
+  /// Toggles the cook for a family: assigns if different, clears if the same
+  Future<void> toggleFamilyCook({
+    required String familyCode,
+    required String memberEmail,
+  }) async {
+    final docRef = _familiesCollection.doc(familyCode);
+    final snap = await docRef.get();
+    if (!snap.exists) throw Exception('Family not found.');
 
-      FamilyModel updatedFamily = family.copyWith(
-        members: family.members.where((m) => m['email'] != userEmail).toList(),
-      );
+    final currentCook = snap.get('cook') as String?;
+    final newCook = (currentCook == memberEmail) ? null : memberEmail;
 
-      if (updatedFamily.members.isEmpty) {
-        await _familiesCollection.doc(familyCode).delete();
-        print("✅ Family $familyCode deleted (no members left).");
-      } else {
-        await _familiesCollection
-            .doc(familyCode)
-            .update(updatedFamily.toJson());
-        print("✅ Removed user $userEmail from family $familyCode.");
-      }
-    } catch (e) {
-      print("❌ Error removing member: $e");
-    }
+    await docRef.update({
+      'cook': newCook,
+    });
+
+    print("✅ Cook updated for $familyCode: $newCook");
   }
 
-  Future<void> removeFamilyFromUserFamilies(
-      String familyCode, String adminEmail) async {
-    final usersSnapshot = await _firestore.collection('users').get();
-
-    for (var doc in usersSnapshot.docs) {
-      final userData = doc.data();
-      final List<dynamic>? families = userData['families'];
-
-      if (families != null && families.contains(familyCode)) {
-        if (doc.id != adminEmail) {
-          await _firestore.collection('users').doc(doc.id).update({
-            'families': FieldValue.arrayRemove([familyCode])
+  Future<void> addOrRemoveFamilyMembers({
+    required String familyCode,
+    required Map<String, String> member,
+    required bool add,
+  }) async {
+    final DocumentReference familyDoc =
+        _firestore.collection('families_collection').doc(familyCode);
+    final snapshot = await familyDoc.get();
+    final isDeleted = snapshot.get('isDeleted') as bool;
+    if (!isDeleted) {
+      try {
+        if (add) {
+          await familyDoc.update({
+            'members': FieldValue.arrayUnion([member]),
           });
-          print("✅ Removed $familyCode from ${doc.id}");
+          print("✅ Member added: $member");
+        } else {
+          await familyDoc.update({
+            'members': FieldValue.arrayRemove([member]),
+          });
+          print("✅ Member removed: $member");
         }
+        // Also update user->families mapping when removing
+        if (!add) {
+          await UserService().addOrRemoveUserFamilies(
+            userEmail: member['email']!,
+            familyCode: familyCode,
+            add: false,
+          );
+        }
+      } catch (e) {
+        print("❌ Error updating family members: $e");
+        rethrow;
       }
+    } else {
+      throw Exception("🚫 This family has been deleted.");
     }
   }
 
@@ -261,10 +247,10 @@ class FamilyService {
     }
   }
 
-  Future<void> deleteFamilyAsAdmin(String adminEmail) async {
+  Future<void> deleteAdminFamily(String adminEmail) async {
     try {
       final existing = await _firestore
-          .collection('families')
+          .collection('families_collection')
           .where('adminEmail', isEqualTo: adminEmail)
           .where('isDeleted', isEqualTo: false)
           .get();
@@ -279,28 +265,29 @@ class FamilyService {
 
       final List<dynamic> members = familyData['members'] ?? [];
 
-      await _firestore.collection('families').doc(familyCode).update({
+      await _firestore
+          .collection('families_collection')
+          .doc(familyCode)
+          .update({
         'isDeleted': true,
       });
 
-      await UserService().updateUserFamilies(
+      await UserService().addOrRemoveUserFamilies(
         userEmail: adminEmail,
         familyCode: familyCode,
         add: false,
       );
 
-      for (var member in members) {
-        final email = member['email'];
-        if (email != adminEmail) {
-          await UserService().updateUserFamilies(
-            userEmail: email,
-            familyCode: familyCode,
-            add: false,
-          );
-
-          await removeMember(familyCode, email);
-        }
-      }
+      // for (var member in members) {
+      //   final email = member['email'];
+      //   if (email != adminEmail) {
+      //     await UserService().addOrRemoveUserFamilies(
+      //       userEmail: email,
+      //       familyCode: familyCode,
+      //       add: false,
+      //     );
+      //   }
+      // }
 
       print("✅ Family marked as deleted and removed from all members.");
     } catch (e) {
