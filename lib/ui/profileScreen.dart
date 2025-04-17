@@ -31,76 +31,122 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     ref.read(userStateProvider.notifier).loadUserData();
   }
 
+
   @override
   Widget build(BuildContext context) {
-    return Consumer(
-      builder: (context, watch, _) {
-        final user = ref.watch(userStateProvider);
-
-        if (user == null) {
-          return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
-        }
-
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Profile'),
-            centerTitle: true,
-            actions: [
-              Builder(
-                builder: (context) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  onPressed: () {
-                    Scaffold.of(context).openEndDrawer();
-                  },
-                ),
-              ),
-            ],
-          ),
-          endDrawer: _buildEndDrawer(user, ref),
-          body: Consumer(
-            builder: (context, ref, _) {
-              final familiesAsync =
-                  ref.watch(userFamiliesProvider(user.email!));
-
-              return familiesAsync.when(
-                data: (families) {
-                  return Column(
-                    children: [
-                      _buildTextForFamilyCode(families),
-                      Expanded(child: _buildContent(user, families)),
-                    ],
-                  );
-                },
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (error, _) =>
-                    Center(child: Text('Error loading families: $error')),
-              );
-            },
-          ),
-        );
-      },
-    );
-  }
-
-  Padding _buildTextForFamilyCode(List<FamilyModel> families) {
-    String displayText = 'Your family code will appear here';
-
-    if (families.isNotEmpty) {
-      final code = families.first.familyCode;
-      if (code.isNotEmpty) {
-        displayText = 'Family Code: $code';
-      }
+    final user = ref.watch(userStateProvider);
+    if (user == null) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    return Padding(
-      padding: const EdgeInsets.all(8.0),
-      child: Text(
-        displayText,
-        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Profile'),
+        centerTitle: true,
+        actions: [
+          Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(Icons.menu),
+              onPressed: () => Scaffold.of(ctx).openEndDrawer(),
+            ),
+          ),
+        ],
+      ),
+      endDrawer: _buildEndDrawer(user, ref),
+      body: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: [
+            _buildTextForFamilyCode(user),
+            const SizedBox(height: 8),
+            Expanded(child: _buildContent(user)),
+          ],
+        ),
       ),
     );
   }
+
+  Widget _buildTextForFamilyCode(UserModel user) {
+    final families = ref.watch(userFamiliesProvider(user.email!)).maybeWhen(
+      data: (fams) => fams,
+      orElse: () => <FamilyModel>[],
+    );
+    final display = families.isNotEmpty ? 'Family Code: ${families.first.familyCode}' : 'Your family code will appear here';
+    return Text(
+      display,
+      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+    );
+  }
+  // @override
+  // Widget build(BuildContext context) {
+  //   return Consumer(
+  //     builder: (context, watch, _) {
+  //       final user = ref.watch(userStateProvider);
+  //
+  //       if (user == null) {
+  //         return const Scaffold(
+  //             body: Center(child: CircularProgressIndicator()));
+  //       }
+  //
+  //       return Scaffold(
+  //         appBar: AppBar(
+  //           title: const Text('Profile'),
+  //           centerTitle: true,
+  //           actions: [
+  //             Builder(
+  //               builder: (context) => IconButton(
+  //                 icon: const Icon(Icons.menu),
+  //                 onPressed: () {
+  //                   Scaffold.of(context).openEndDrawer();
+  //                 },
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         endDrawer: _buildEndDrawer(user, ref),
+  //         body: Consumer(
+  //           builder: (context, ref, _) {
+  //             final familiesAsync =
+  //                 ref.watch(userFamiliesProvider(user.email!));
+  //
+  //             return familiesAsync.when(
+  //               data: (families) {
+  //                 return Column(
+  //                   children: [
+  //                     _buildTextForFamilyCode(families),
+  //                     Expanded(child: _buildContent(user, families)),
+  //                   ],
+  //                 );
+  //               },
+  //               loading: () => const Center(child: CircularProgressIndicator()),
+  //               error: (error, _) =>
+  //                   Center(child: Text('Error loading families: $error')),
+  //             );
+  //           },
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+
+  // Padding _buildTextForFamilyCode(List<FamilyModel> families) {
+  //   String displayText = 'Your family code will appear here';
+  //
+  //   if (families.isNotEmpty) {
+  //     final code = families.first.familyCode;
+  //     if (code.isNotEmpty) {
+  //       displayText = 'Family Code: $code';
+  //     }
+  //   }
+  //
+  //   return Padding(
+  //     padding: const EdgeInsets.all(8.0),
+  //     child: Text(
+  //       displayText,
+  //       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  //     ),
+  //   );
+  // }
 
   Widget _buildEndDrawer(UserModel user, WidgetRef ref) {
     return Drawer(
@@ -485,45 +531,141 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     );
   }
 
-  Widget _buildContent(UserModel user, List<FamilyModel> families) {
-    return Column(
-      children: [
-        Expanded(
-          child: ListView(
-            children: families.map((family) {
-              return ExpansionTile(
-                title: Text(family.familyName),
-                children: family.members.map((member) {
-                  return ListTile(
-                    title: Text(member['name'] ?? 'Unknown'),
-                    subtitle: Text(member['email'] ?? ''),
-                    leading: const Icon(Icons.person),
-                    onLongPress: () async {
-                      final selected = await showMenu<String>(
-                        context: context,
-                        position: RelativeRect.fill,
-                        items: const [
-                          PopupMenuItem(value: 'view', child: Text('View')),
-                          PopupMenuItem(value: 'edit', child: Text('Edit')),
-                          PopupMenuItem(value: 'remove', child: Text('Remove')),
-                        ],
+  Widget _buildContent(UserModel user) {
+    final userEmail = user.email!;
+    final familiesAsync = ref.watch(userFamiliesProvider(userEmail));
+    final familyService = FamilyService();
+
+    return familiesAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(child: Text('Error: ${e.toString()}')),
+      data: (families) {
+        if (families.isEmpty) {
+          return const Center(child: Text('No families found.'));
+        }
+        return ListView.builder(
+          itemCount: families.length,
+          itemBuilder: (context, index) {
+            final family = families[index];
+            final isAdmin = family.adminEmail == userEmail;
+            final cookEmail = family.cook;
+            final cookName = cookEmail != null
+                ? family.members.firstWhere((m) => m['email'] == cookEmail)['name'] as String
+                : null;
+
+            return ExpansionTile(
+              title: Row(
+                children: [
+                  Expanded(child: Text(family.familyName)),
+                  if (cookName != null) ...[
+                    const SizedBox(width: 12),
+                    Chip(label: Text('Cook: $cookName')),
+                  ],
+                ],
+              ),
+              children: family.members.map((member) {
+                final name = member['name'] as String? ?? 'Unknown';
+                final email = member['email'] as String? ?? '';
+                final isCookMember = email == cookEmail;
+
+                return ListTile(
+                  leading: const Icon(Icons.person),
+                  title: Row(
+                    children: [
+                      Text(name),
+                      if (isCookMember) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.restaurant_menu, size: 18),
+                      ],
+                    ],
+                  ),
+                  subtitle: Text(email),
+                  onLongPress: isAdmin
+                      ? () async {
+                    final choice = await showMenu<String>(
+                      context: context,
+                      position: const RelativeRect.fromLTRB(100, 100, 0, 0),
+                      items: const [
+                        PopupMenuItem(value: 'cook', child: Text('Toggle Cook')),
+                        PopupMenuItem(value: 'remove', child: Text('Remove Member')),
+                      ],
+                    );
+                    if (choice == null) return;
+
+                    if (choice == 'cook') {
+                      final resultText = isCookMember
+                          ? 'Removed cook role from $name'
+                          : 'Assigned cook: $name';
+                      await familyService.toggleFamilyCook(
+                        familyCode: family.familyCode,
+                        memberEmail: email,
                       );
-                      if (selected != null) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                                'Selected: $selected for ${member['name']}'),
-                          ),
-                        );
-                      }
-                    },
-                  );
-                }).toList(),
-              );
-            }).toList(),
-          ),
-        ),
-      ],
+                      ref.refresh(userFamiliesProvider(userEmail));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text(resultText)),
+                      );
+                    } else {
+                      await familyService.addOrRemoveFamilyMembers(
+                        familyCode: family.familyCode,
+                        member: {'name': name, 'email': email},
+                        add: false,
+                      );
+                      ref.refresh(userFamiliesProvider(userEmail));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('$name removed from family')),
+                      );
+                    }
+                  }
+                      : null,
+                );
+              }).toList(),
+            );
+          },
+        );
+      },
     );
   }
+
+// Widget _buildContent(UserModel user, List<FamilyModel> families) {
+//     return Column(
+//       children: [
+//         Expanded(
+//           child:
+//           ListView(
+//             children: families.map((family) {
+//               return ExpansionTile(
+//                 title: Text(family.familyName),
+//                 children: family.members.map((member) {
+//                   return ListTile(
+//                     title: Text(member['name'] ?? 'Unknown'),
+//                     subtitle: Text(member['email'] ?? ''),
+//                     leading: const Icon(Icons.person),
+//                     onLongPress: () async {
+//                       final selected = await showMenu<String>(
+//                         context: context,
+//                         position: RelativeRect.fill,
+//                         items: const [
+//                           PopupMenuItem(value: 'cook', child: Text('Assign Cook')),
+//                           // PopupMenuItem(value: 'edit', child: Text('Edit')),
+//                           PopupMenuItem(value: 'remove', child: Text('Remove')),
+//                         ],
+//                       );
+//                       if (selected != null) {
+//                         ScaffoldMessenger.of(context).showSnackBar(
+//                           SnackBar(
+//                             content: Text(
+//                                 'Selected: $selected for ${member['name']}'),
+//                           ),
+//                         );
+//                       }
+//                     },
+//                   );
+//                 }).toList(),
+//               );
+//             }).toList(),
+//           ),
+//         ),
+//       ],
+//     );
+//   }
 }

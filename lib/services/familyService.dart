@@ -24,7 +24,8 @@ class FamilyService {
         throw Exception('You have already created a family.');
       }
 
-      DocumentReference docRef = _firestore.collection('families_collection').doc();
+      DocumentReference docRef =
+          _firestore.collection('families_collection').doc();
       final updatedFamily = family.copyWith(familyCode: docRef.id);
 
       await docRef.set(updatedFamily.toJson());
@@ -93,6 +94,25 @@ class FamilyService {
     }
   }
 
+  /// Toggles the cook for a family: assigns if different, clears if the same
+  Future<void> toggleFamilyCook({
+    required String familyCode,
+    required String memberEmail,
+  }) async {
+    final docRef = _familiesCollection.doc(familyCode);
+    final snap = await docRef.get();
+    if (!snap.exists) throw Exception('Family not found.');
+
+    final currentCook = snap.get('cook') as String?;
+    final newCook = (currentCook == memberEmail) ? null : memberEmail;
+
+    await docRef.update({
+      'cook': newCook,
+    });
+
+    print("✅ Cook updated for $familyCode: $newCook");
+  }
+
   Future<void> addOrRemoveFamilyMembers({
     required String familyCode,
     required Map<String, String> member,
@@ -115,6 +135,14 @@ class FamilyService {
           });
           print("✅ Member removed: $member");
         }
+        // Also update user->families mapping when removing
+        if (!add) {
+          await UserService().addOrRemoveUserFamilies(
+            userEmail: member['email']!,
+            familyCode: familyCode,
+            add: false,
+          );
+        }
       } catch (e) {
         print("❌ Error updating family members: $e");
         rethrow;
@@ -123,8 +151,6 @@ class FamilyService {
       throw Exception("🚫 This family has been deleted.");
     }
   }
-
-
 
   Future<void> updateFamilyCook(String familyCode, String cookEmail) async {
     try {
@@ -239,7 +265,10 @@ class FamilyService {
 
       final List<dynamic> members = familyData['members'] ?? [];
 
-      await _firestore.collection('families_collection').doc(familyCode).update({
+      await _firestore
+          .collection('families_collection')
+          .doc(familyCode)
+          .update({
         'isDeleted': true,
       });
 
