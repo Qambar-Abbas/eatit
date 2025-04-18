@@ -1,6 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eatit/models/userModel.dart';
-import 'package:eatit/riverpods/familyriverpod.dart';
 import 'package:eatit/ui/homeNavigationBar.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +8,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../services/platformService.dart';
 import '../../services/userService.dart';
+import '../services/riverpods/familyRiverpod.dart';
 
 class SignInScreen extends ConsumerStatefulWidget {
   const SignInScreen({super.key});
@@ -161,24 +161,48 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
 
   /// Revives an existing (soft-deleted) account.
   Future<void> _reviveAccount(User firebaseUser) async {
-    final UserModel? existingUser =
-        await userService.getUserData(firebaseUser.email!);
+    final String email = firebaseUser.email!;
+    final UserModel? existingUser = await userService.getUserData(email);
+    final DocumentReference userRef =
+    _firestore.collection('users_collection').doc(email);
+
     if (existingUser != null) {
-      final Map<String, dynamic> updatedData = existingUser.toJson()
+      // “Undelete” the existing record
+      final Map<String, dynamic> updatedMap = existingUser.toMap()
         ..['isDeleted'] = false;
-      await _firestore
-          .collection('users_collection')
-          .doc(firebaseUser.email)
-          .update(updatedData);
+      await userRef.update(updatedMap);
     } else {
-      // Fallback if the record is missing.
+      // If no Firestore record exists, create one from the Firebase user
       await userService.storeUserInFirestore(firebaseUser);
     }
+
+    // Store a fresh local copy (always un-deleted)
     final UserModel revivedUser = UserModel.fromFirebaseUser(firebaseUser);
     await userService.storeUserLocally(revivedUser);
+
     _showSnackBar('Your previous account has been revived.');
     _navigateToHome(revivedUser);
   }
+
+  // Future<void> _reviveAccount(User firebaseUser) async {
+  //   final UserModel? existingUser =
+  //       await userService.getUserData(firebaseUser.email!);
+  //   if (existingUser != null) {
+  //     final Map<String, dynamic> updatedData = existingUser.toJson()
+  //       ..['isDeleted'] = false;
+  //     await _firestore
+  //         .collection('users_collection')
+  //         .doc(firebaseUser.email)
+  //         .update(updatedData);
+  //   } else {
+  //     // Fallback if the record is missing.
+  //     await userService.storeUserInFirestore(firebaseUser);
+  //   }
+  //   final UserModel revivedUser = UserModel.fromFirebaseUser(firebaseUser);
+  //   await userService.storeUserLocally(revivedUser);
+  //   _showSnackBar('Your previous account has been revived.');
+  //   _navigateToHome(revivedUser);
+  // }
 
   /// Creates a new account by overriding the old document.
   Future<void> _createNewAccount(User firebaseUser) async {

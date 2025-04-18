@@ -1,7 +1,5 @@
 import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/models/userModel.dart';
-import 'package:eatit/riverpods/familyriverpod.dart';
-import 'package:eatit/riverpods/userStateRiverPod.dart';
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/services/platformService.dart';
 import 'package:eatit/services/userService.dart';
@@ -9,6 +7,9 @@ import 'package:eatit/ui/signinScreen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../services/riverpods/familyRiverpod.dart';
+import '../services/riverpods/userStateRiverPod.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
@@ -71,12 +72,33 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       data: (fams) => fams,
       orElse: () => <FamilyModel>[],
     );
-    final display = families.isNotEmpty ? 'Family Code: ${families.first.familyCode}' : 'Your family code will appear here';
+
+    final adminFamily = families.where(
+          (family) => family.adminEmail == user.email && family.isDeleted == false,
+    );
+
+    final display = adminFamily.isNotEmpty
+        ? 'Family Code: ${adminFamily.first.familyCode}'
+        : 'Your family code will appear here';
+
     return Text(
       display,
       style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
     );
   }
+
+  //
+  // Widget _buildTextForFamilyCode(UserModel user) {
+  //   final families = ref.watch(userFamiliesProvider(user.email!)).maybeWhen(
+  //     data: (fams) => fams,
+  //     orElse: () => <FamilyModel>[],
+  //   );
+  //   final display = families.isNotEmpty ? 'Family Code: ${families.first.familyCode}' : 'Your family code will appear here';
+  //   return Text(
+  //     display,
+  //     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+  //   );
+  // }
   // @override
   // Widget build(BuildContext context) {
   //   return Consumer(
@@ -605,16 +627,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         SnackBar(content: Text(resultText)),
                       );
                     } else {
-                      await familyService.addOrRemoveFamilyMembers(
-                        familyCode: family.familyCode,
-                        member: {'name': name, 'email': email},
-                        add: false,
-                      );
-                      ref.refresh(userFamiliesProvider(userEmail));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('$name removed from family')),
-                      );
+                      // Prevent the admin from removing themselves
+                      if (email == family.adminEmail) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('⚠️ You cannot remove the family admin from the family.'),
+                          ),
+                        );
+                      } else {
+                        await familyService.addOrRemoveFamilyMembers(
+                          familyCode: family.familyCode,
+                          member: {'name': name, 'email': email},
+                          add: false,
+                        );
+                        ref.refresh(userFamiliesProvider(userEmail));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('$name removed from family')),
+                        );
+                      }
                     }
+
                   }
                       : null,
                 );
