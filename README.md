@@ -8,6 +8,9 @@ Changelog:
 [v1.8.9]
 remove member integrated,
 assignment of cook integrated,
+moved reiverpod folder,
+family code now only display own family's code,
+
 
 
 [v1.8.8]
