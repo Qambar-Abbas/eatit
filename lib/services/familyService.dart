@@ -6,7 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 class FamilyService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final CollectionReference _familiesCollection =
-  FirebaseFirestore.instance.collection('families_collection');
+      FirebaseFirestore.instance.collection('families_collection');
 
   /// Converts a [FamilyModel] into a Map for Firestore storage.
   Map<String, dynamic> _familyToMap(FamilyModel family) {
@@ -17,26 +17,21 @@ class FamilyService {
       'members': family.members,
       'cook': family.cook,
       'foodMenu': family.foodMenu,
-      'isDeleted': family.isDeleted ?? false,
+      'isDeleted': family.isDeleted,
     };
   }
 
   /// Creates a [FamilyModel] from Firestore snapshot data.
   FamilyModel _mapToFamilyModel(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>;
-    final members = (data['members'] as List<dynamic>? ?? [])
-        .map((e) => Map<String, String>.from(e as Map))
-        .toList();
-    final foodMenu = (data['foodMenu'] as List<dynamic>? ?? [])
-        .map((e) => Map<String, dynamic>.from(e as Map))
-        .toList();
+
     return FamilyModel(
-      familyName: data['familyName'] ?? '',
-      adminEmail: data['adminEmail'] ?? '',
+      familyName: data['familyName'] as String? ?? '',
+      adminEmail: data['adminEmail'] as String? ?? '',
       familyCode: snap.id,
-      members: members,
+      members: List<String>.from(data['members'] as List? ?? const []),
       cook: data['cook'] as String?,
-      foodMenu: foodMenu,
+      foodMenu: Map<String, dynamic>.from(data['foodMenu']),
       isDeleted: data['isDeleted'] as bool? ?? false,
     );
   }
@@ -74,17 +69,39 @@ class FamilyService {
     }
   }
 
+  Future<void> updateFamilyFoodMenu({
+    required String familyCode,
+    required String day,
+    required String mealType, // 'lunch' or 'dinner'
+    required List<String> values,
+  }) async {
+    try {
+      final docRef = _familiesCollection.doc(familyCode);
+
+      // Directly update only the specific meal for the day
+      await docRef.update({
+        'foodMenu.$day.$mealType': values,
+      });
+
+      print('✅ Efficiently updated $mealType for $day to $values');
+    } catch (e) {
+      print('❌ Error updating food menu efficiently: $e');
+      rethrow;
+    }
+  }
+
   Future<FamilyModel?> fetchFamilyDataFromFirebase() async {
     try {
       final userEmail = FirebaseAuth.instance.currentUser?.email;
       if (userEmail == null) throw Exception("User not authenticated.");
 
       final userSnap =
-      await _firestore.collection('users').doc(userEmail).get();
+          await _firestore.collection('users').doc(userEmail).get();
       if (!userSnap.exists) throw Exception("User document not found.");
 
       final families = List<String>.from(userSnap.get('families') ?? []);
-      if (families.isEmpty) throw Exception("User does not belong to any family.");
+      if (families.isEmpty)
+        throw Exception("User does not belong to any family.");
 
       return await getFamilyByCodeFromFirebase(families.first);
     } catch (e) {
@@ -138,7 +155,7 @@ class FamilyService {
 
   Future<void> addOrRemoveFamilyMembers({
     required String familyCode,
-    required Map<String, String> member,
+    required String memberEmail,
     required bool add,
   }) async {
     final familyDoc = _familiesCollection.doc(familyCode);
@@ -151,16 +168,18 @@ class FamilyService {
     try {
       if (add) {
         await familyDoc.update({
-          'members': FieldValue.arrayUnion([member]),
+          'members': FieldValue.arrayUnion([memberEmail]),
         });
-        print("✅ Member added: $member");
+        print("✅ Member added: $memberEmail");
       } else {
         await familyDoc.update({
-          'members': FieldValue.arrayRemove([member]),
+          'members': FieldValue.arrayRemove([memberEmail]),
         });
-        print("✅ Member removed: $member");
+        print("✅ Member removed: $memberEmail");
+
+        // Also remove from the user’s family list
         await UserService().addOrRemoveUserFamilies(
-          userEmail: member['email']!,
+          userEmail: memberEmail,
           familyCode: familyCode,
           add: false,
         );
@@ -168,15 +187,6 @@ class FamilyService {
     } catch (e) {
       print("❌ Error updating family members: $e");
       rethrow;
-    }
-  }
-
-  Future<void> updateFamilyCook(String familyCode, String cookEmail) async {
-    try {
-      await _familiesCollection.doc(familyCode).update({'cook': cookEmail});
-      print("✅ Assigned cook $cookEmail to family $familyCode.");
-    } catch (e) {
-      print("❌ Error assigning cook: $e");
     }
   }
 
@@ -196,48 +206,6 @@ class FamilyService {
     } catch (e) {
       print("❌ Error fetching weekly menu: $e");
       return null;
-    }
-  }
-
-  Future<void> createWeeklyMenu(String familyCode) async {
-    try {
-      final emptyMenu = {
-        'monday': [],
-        'tuesday': [],
-        'wednesday': [],
-        'thursday': [],
-        'friday': [],
-        'saturday': [],
-        'sunday': [],
-      };
-
-      await _familiesCollection.doc(familyCode).update({'foodMenu': emptyMenu});
-      print("✅ Weekly menu created for family $familyCode.");
-    } catch (e) {
-      print("❌ Error creating weekly menu: $e");
-    }
-  }
-
-  Future<void> updateWeeklyMenu(
-      String familyCode,
-      String day,
-      List<String> lunchItems,
-      List<String> dinnerItems,
-      ) async {
-    try {
-      final snap = await _familiesCollection.doc(familyCode).get();
-      if (!snap.exists) throw Exception("Family does not exist.");
-
-      final currentMenu = Map<String, dynamic>.from(snap.get('foodMenu') ?? {});
-      currentMenu[day] = {
-        'lunchItems': lunchItems,
-        'dinnerItems': dinnerItems,
-      };
-
-      await _familiesCollection.doc(familyCode).update({'foodMenu': currentMenu});
-      print("✅ Menu updated for $day in family $familyCode.");
-    } catch (e) {
-      print("❌ Error updating weekly menu: $e");
     }
   }
 
@@ -278,6 +246,29 @@ class FamilyService {
       print("✅ Family marked as deleted and removed from all members.");
     } catch (e) {
       print("❌ Error deleting family as admin: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> updateDailyMenu({
+    required String familyCode,
+    required String day,
+    required List<String> lunchItems,
+    required List<String> dinnerItems,
+  }) async {
+    try {
+      final docRef = _familiesCollection.doc(familyCode);
+
+      final updateData = {
+        'foodMenu.$day.lunch': lunchItems,
+        'foodMenu.$day.dinner': dinnerItems,
+      };
+
+      await docRef.update(updateData);
+
+      print('✅ Successfully updated lunch and dinner for $day');
+    } catch (e) {
+      print('❌ Error updating daily menu for $day: $e');
       rethrow;
     }
   }

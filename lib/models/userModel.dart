@@ -1,23 +1,21 @@
-import 'dart:core';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class UserModel {
-  String? uid;
-  String? displayName;
-  String? email;
-  String? photoURL;
-  List<String> families;
-  bool isDeleted;
+  final String uid;
+  final String? displayName;
+  final String? email;
+  final String? photoURL;
+  final List<String> families;
+  final bool isDeleted;
 
   UserModel({
-    this.uid,
+    required this.uid,
     this.displayName,
     this.email,
     this.photoURL,
     List<String>? families,
-    bool? isDeleted,
-  })  : families = families ?? [],
-        isDeleted = isDeleted ?? false;
+    this.isDeleted = false,
+  }) : families = families ?? const [];
 
   factory UserModel.fromFirebaseUser(User user) {
     return UserModel(
@@ -25,32 +23,28 @@ class UserModel {
       displayName: user.displayName,
       email: user.email,
       photoURL: user.photoURL,
-      families: [],
-      isDeleted: false,
     );
   }
 
-  static UserModel fromMap(Map<String, dynamic> map) {
+  factory UserModel.fromMap(Map<String, dynamic> map) {
     return UserModel(
-      uid: map['uid'] as String?,
+      uid: map['uid'] as String,
       displayName: map['displayName'] as String?,
       email: map['email'] as String?,
       photoURL: map['photoURL'] as String?,
-      families: (map['families'] as List<dynamic>? ?? []).cast<String>(),
+      families: List<String>.from(map['families'] as List? ?? const []),
       isDeleted: map['isDeleted'] as bool? ?? false,
     );
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'uid': uid,
-      'displayName': displayName,
-      'email': email,
-      'photoURL': photoURL,
-      'families': families,
-      'isDeleted': isDeleted,
-    };
-  }
+  Map<String, dynamic> toMap() => {
+        'uid': uid,
+        'displayName': displayName,
+        'email': email,
+        'photoURL': photoURL,
+        'families': families,
+        'isDeleted': isDeleted,
+      };
 
   UserModel copyWith({
     String? uid,
@@ -70,23 +64,22 @@ class UserModel {
     );
   }
 
-  UserModel addFamily(String familyCode) {
-    if (!families.contains(familyCode)) {
-      return copyWith(families: [...families, familyCode]);
+  UserModel addFamily(String code) {
+    if (!families.contains(code)) {
+      return copyWith(families: [...families, code]);
     }
     return this;
   }
 
-  UserModel removeFamily(String familyCode) {
-    return copyWith(families: families.where((f) => f != familyCode).toList());
+  UserModel removeFamily(String code) {
+    return copyWith(families: families.where((f) => f != code).toList());
   }
 
   @override
   String toString() {
-    return 'UserModel(displayName: $displayName, email: $email, families: $families, isDeleted: $isDeleted)';
+    return 'UserModel(uid: $uid, displayName: $displayName, email: $email, families: $families, isDeleted: $isDeleted)';
   }
 }
-
 
 // import 'dart:core';
 // import 'package:firebase_auth/firebase_auth.dart';
