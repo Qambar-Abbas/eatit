@@ -2,28 +2,51 @@ class FamilyModel {
   final String familyName;
   final String adminEmail;
   final String familyCode;
-  final List<Map<String, String>> members;
+  final List<String> members;
   final String? cook;
-  final List<Map<String, dynamic>> foodMenu;
-  bool? isDeleted;
+  final Map<String, dynamic> foodMenu;
+  final bool isDeleted;
 
   FamilyModel({
     required this.familyName,
     required this.adminEmail,
     required this.familyCode,
-    required this.members,
+    List<String>? members,
     this.cook,
-    required this.foodMenu,
-    required this.isDeleted,
-  });
+    Map<String, dynamic>? foodMenu,
+    this.isDeleted = false,
+  })  : members = members ?? const [],
+        foodMenu = foodMenu ?? {};
+
+  factory FamilyModel.fromMap(Map<String, dynamic> map) {
+    return FamilyModel(
+      familyName: map['familyName'] as String,
+      adminEmail: map['adminEmail'] as String,
+      familyCode: map['familyCode'] as String,
+      members: List<String>.from(map['members'] as List? ?? const []),
+      cook: map['cook'] as String?,
+      foodMenu: Map<String, dynamic>.from(map['foodMenu']),
+      isDeleted: map['isDeleted'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'familyName': familyName,
+        'adminEmail': adminEmail,
+        'familyCode': familyCode,
+        'members': members,
+        'cook': cook,
+        'foodMenu': foodMenu,
+        'isDeleted': isDeleted,
+      };
 
   FamilyModel copyWith({
     String? familyName,
     String? adminEmail,
     String? familyCode,
-    List<Map<String, String>>? members,
+    List<String>? members,
     String? cook,
-    List<Map<String, dynamic>>? foodMenu,
+    Map<String, dynamic>? foodMenu,
     bool? isDeleted,
   }) {
     return FamilyModel(
@@ -39,11 +62,9 @@ class FamilyModel {
 
   @override
   String toString() {
-    return 'FamilyModel(familyName: $familyName, adminEmail: $adminEmail, familyCode: $familyCode, members: $members, cook: $cook, foodMenu: $foodMenu), isDeleted: $isDeleted';
+    return 'FamilyModel(familyName: $familyName, adminEmail: $adminEmail, familyCode: $familyCode, members: $members, cook: $cook, foodMenu: $foodMenu, isDeleted: $isDeleted)';
   }
 }
-
-
 
 // class FamilyModel {
 //   final String familyName;
