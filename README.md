@@ -5,6 +5,9 @@ Whether you're cooking for yourself, your family, or hosting a dinner party, Men
 
 Changelog:
 
+[v1.9.0]
+
+
 [v1.8.9]
 remove member integrated,
 assignment of cook integrated,

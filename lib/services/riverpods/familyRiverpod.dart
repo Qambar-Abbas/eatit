@@ -10,7 +10,7 @@ final familyServiceProvider = Provider<FamilyService>((ref) {
 
 /// Fetches all active families for a given user
 final userFamiliesProvider =
-FutureProvider.family<List<FamilyModel>, String>((ref, userEmail) async {
+    FutureProvider.family<List<FamilyModel>, String>((ref, userEmail) async {
   // Read the FamilyService instance
   final familyService = ref.read(familyServiceProvider);
 
@@ -26,7 +26,7 @@ FutureProvider.family<List<FamilyModel>, String>((ref, userEmail) async {
   // Fetch each family by code and filter out deleted ones
   for (final code in codes) {
     final family = await familyService.getFamilyByCodeFromFirebase(code);
-    if (family != null && (family.isDeleted ?? false) == false) {
+    if (family != null && family.isDeleted == false) {
       families.add(family);
     }
   }
@@ -34,3 +34,22 @@ FutureProvider.family<List<FamilyModel>, String>((ref, userEmail) async {
   return families;
 });
 
+/// Emits the `foodMenu` map whenever the family doc changes.
+final weeklyMenuProvider =
+    StreamProvider.family<Map<String, dynamic>, String>((ref, familyCode) {
+  final col = FirebaseFirestore.instance.collection('families_collection');
+  return col
+      .doc(familyCode)
+      .snapshots()
+      .map((snap) => (snap.data()?['foodMenu'] as Map<String, dynamic>));
+});
+
+/// Emits the `selectedMeal` string whenever the family doc changes.
+final selectedMealProvider =
+    StreamProvider.family<String, String>((ref, familyCode) {
+  final col = FirebaseFirestore.instance.collection('families_collection');
+  return col
+      .doc(familyCode)
+      .snapshots()
+      .map((snap) => (snap.data()?['selectedMeal'] ?? '') as String);
+});
