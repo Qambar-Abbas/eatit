@@ -6,6 +6,9 @@ class FamilyModel {
   final String? cook;
   final Map<String, dynamic> foodMenu;
   final bool isDeleted;
+  final String selectedMeal;
+  final Map<String, List<String>> votes;
+  final bool isVotingOpen;
 
   FamilyModel({
     required this.familyName,
@@ -15,8 +18,12 @@ class FamilyModel {
     this.cook,
     Map<String, dynamic>? foodMenu,
     this.isDeleted = false,
+    this.selectedMeal = '',
+    Map<String, List<String>>? votes,
+    this.isVotingOpen = false,
   })  : members = members ?? const [],
-        foodMenu = foodMenu ?? {};
+        foodMenu = foodMenu ?? {},
+        votes = votes ?? {};
 
   factory FamilyModel.fromMap(Map<String, dynamic> map) {
     return FamilyModel(
@@ -25,8 +32,12 @@ class FamilyModel {
       familyCode: map['familyCode'] as String,
       members: List<String>.from(map['members'] as List? ?? const []),
       cook: map['cook'] as String?,
-      foodMenu: Map<String, dynamic>.from(map['foodMenu']),
+      foodMenu: Map<String, dynamic>.from(map['foodMenu'] ?? {}),
       isDeleted: map['isDeleted'] as bool? ?? false,
+      selectedMeal: map['selectedMeal'] as String? ?? '',
+      votes: (map['votes'] as Map<String, dynamic>? ?? {})
+          .map((key, value) => MapEntry(key, List<String>.from(value as List))),
+      isVotingOpen: map['isVotingOpen'] as bool? ?? false,
     );
   }
 
@@ -38,6 +49,9 @@ class FamilyModel {
         'cook': cook,
         'foodMenu': foodMenu,
         'isDeleted': isDeleted,
+        'selectedMeal': selectedMeal,
+        'votes': votes,
+        'isVotingOpen': isVotingOpen,
       };
 
   FamilyModel copyWith({
@@ -48,6 +62,9 @@ class FamilyModel {
     String? cook,
     Map<String, dynamic>? foodMenu,
     bool? isDeleted,
+    String? selectedMeal,
+    Map<String, List<String>>? votes,
+    bool? isVotingOpen,
   }) {
     return FamilyModel(
       familyName: familyName ?? this.familyName,
@@ -57,84 +74,14 @@ class FamilyModel {
       cook: cook ?? this.cook,
       foodMenu: foodMenu ?? this.foodMenu,
       isDeleted: isDeleted ?? this.isDeleted,
+      selectedMeal: selectedMeal ?? this.selectedMeal,
+      votes: votes ?? this.votes,
+      isVotingOpen: isVotingOpen ?? this.isVotingOpen,
     );
   }
 
   @override
   String toString() {
-    return 'FamilyModel(familyName: $familyName, adminEmail: $adminEmail, familyCode: $familyCode, members: $members, cook: $cook, foodMenu: $foodMenu, isDeleted: $isDeleted)';
+    return 'FamilyModel(familyName: $familyName, adminEmail: $adminEmail, familyCode: $familyCode, members: $members, cook: $cook, foodMenu: $foodMenu, isDeleted: $isDeleted, selectedMeal: $selectedMeal, votes: $votes, isVotingOpen: $isVotingOpen)';
   }
 }
-
-// class FamilyModel {
-//   final String familyName;
-//   final String adminEmail;
-//   final String familyCode;
-//   final List<Map<String, String>> members;
-//   final String? cook;
-//   final List<Map<String, dynamic>> foodMenu;
-//   bool? isDeleted;
-//
-//   FamilyModel({
-//     required this.familyName,
-//     required this.adminEmail,
-//     required this.familyCode,
-//     required this.members,
-//     this.cook,
-//     required this.foodMenu,
-//     required this.isDeleted,
-//   });
-//
-//   factory FamilyModel.fromJson(Map<String, dynamic> json) {
-//     return FamilyModel(
-//       familyName: json['familyName'] ?? '',
-//       adminEmail: json['adminEmail'] ?? '',
-//       familyCode: json['familyCode'] ?? '',
-//       members: (json['members'] as List<dynamic>? ?? [])
-//           .map((e) => Map<String, String>.from(e as Map))
-//           .toList(),
-//       cook: json['cook'] as String?,
-//       foodMenu: (json['foodMenu'] as List<dynamic>? ?? [])
-//           .map((e) => Map<String, dynamic>.from(e as Map))
-//           .toList(),
-//       isDeleted: json['isDeleted'] ?? false,
-//     );
-//   }
-//
-//   Map<String, dynamic> toJson() {
-//     return {
-//       'familyName': familyName,
-//       'adminEmail': adminEmail,
-//       'familyCode': familyCode,
-//       'members': members,
-//       'cook': cook,
-//       'foodMenu': foodMenu,
-//       'isDeleted': isDeleted,
-//     };
-//   }
-//
-//   FamilyModel copyWith({
-//     String? familyName,
-//     String? adminEmail,
-//     String? familyCode,
-//     List<Map<String, String>>? members,
-//     String? cook,
-//     List<Map<String, dynamic>>? foodMenu,
-//     bool? isDeleted,
-//   }) {
-//     return FamilyModel(
-//       familyName: familyName ?? this.familyName,
-//       adminEmail: adminEmail ?? this.adminEmail,
-//       familyCode: familyCode ?? this.familyCode,
-//       members: members ?? this.members,
-//       cook: cook ?? this.cook,
-//       foodMenu: foodMenu ?? this.foodMenu,
-//       isDeleted: isDeleted ?? this.isDeleted,
-//     );
-//   }
-//
-//   @override
-//   String toString() {
-//     return 'FamilyModel(familyName: $familyName, adminEmail: $adminEmail, familyCode: $familyCode, members: $members, cook: $cook, foodMenu: $foodMenu), isDeleted: $isDeleted';
-//   }
-// }
