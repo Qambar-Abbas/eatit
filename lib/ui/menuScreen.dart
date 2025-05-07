@@ -8,7 +8,7 @@ import '../models/familyModel.dart';
 import '../services/riverpods/familyRiverpod.dart';
 
 class MenuScreen extends ConsumerStatefulWidget {
-  const MenuScreen({Key? key}) : super(key: key);
+  const MenuScreen({super.key});
 
   @override
   _MenuScreenState createState() => _MenuScreenState();
@@ -58,7 +58,8 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
           );
         } else if (snapshot.hasError) {
           return Scaffold(
-            body: Center(child: Text('Error loading families: ${snapshot.error}')),
+            body: Center(
+                child: Text('Error loading families: ${snapshot.error}')),
           );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Scaffold(
@@ -76,7 +77,7 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
         }
 
         final selectedFamily = families.firstWhere(
-              (f) => f.familyCode == _selectedFamilyCode,
+          (f) => f.familyCode == _selectedFamilyCode,
           orElse: () => families.first,
         );
 
@@ -98,17 +99,17 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
           ),
           body: isCook
               ? CookMenuScreen(
-            onSwitchScreen: (int index) {},
-            families: families,
-            selectedFamilyCode: _selectedFamilyCode!,
-            onFamilyChange: _onFamilyChanged,
-          )
+                  onSwitchScreen: (int index) {},
+                  families: families,
+                  selectedFamilyCode: _selectedFamilyCode!,
+                  onFamilyChange: _onFamilyChanged,
+                )
               : UserMenuScreen(
-            onSwitchScreen: (int index) {},
-            families: families,
-            selectedFamilyCode: _selectedFamilyCode!,
-            onFamilyChange: _onFamilyChanged,
-          ),
+                  onSwitchScreen: (int index) {},
+                  families: families,
+                  selectedFamilyCode: _selectedFamilyCode!,
+                  onFamilyChange: _onFamilyChanged,
+                ),
         );
       },
     );

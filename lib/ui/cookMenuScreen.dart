@@ -1,8 +1,6 @@
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/services/riverpods/familyRiverpod.dart';
-import 'package:eatit/services/riverpods/userStateRiverPod.dart';
-import 'package:eatit/services/riverpods/voteRiverpod.dart';
-import 'package:eatit/ui/voteWidget.dart';
+
 import 'package:flutter/material.dart';
 import 'package:eatit/models/familyModel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,18 +73,6 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     Future.delayed(const Duration(seconds: 1), _updateTime);
   }
 
-  void _startVote() async {
-    final choices = _menuItems ?? [];
-    if (choices.isEmpty) return;
-    await ref.read(voteServiceProvider).startVote(
-          familyCode: widget.selectedFamilyCode,
-          choices: choices,
-        );
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('✅ Voting open for 15 minutes!')),
-    );
-  }
-
   // --- Header Section ---
   Widget _buildHeader(String selectedMeal) {
     return Column(
@@ -104,7 +90,7 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
         const SizedBox(height: 4),
         if (selectedMeal.isNotEmpty)
           Text(
-            'Selected Meal: $selectedMeal',
+            'Decided Meal: $selectedMeal',
             style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,
@@ -128,10 +114,10 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
   // --- Menu Selection Section ---
   Widget _buildMenuSelection() {
     // Filter out null or empty items
-    final nonEmptyItems =
+    final foodItems =
         _menuItems?.where((item) => item.trim().isNotEmpty).toList() ?? [];
 
-    if (nonEmptyItems.isEmpty) {
+    if (foodItems.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24.0),
         child: Center(
@@ -146,9 +132,9 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     return SizedBox(
       height: 160,
       child: ListView.builder(
-        itemCount: nonEmptyItems.length,
+        itemCount: foodItems.length,
         itemBuilder: (context, index) {
-          final item = nonEmptyItems[index];
+          final item = foodItems[index];
           final isSelected = item == _currentSelection;
 
           return Card(
@@ -173,7 +159,7 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
   Widget _buildUpdateButton() {
     return Center(
       child: ElevatedButton(
-        onPressed: _currentSelection == null
+        onPressed: (_currentSelection == null)
             ? null
             : () async {
                 setState(() {
@@ -204,42 +190,43 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     );
   }
 
+  Widget _buildActionButton({
+    required String label,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return ElevatedButton(
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onPressed: onPressed,
+      child: Text(label),
+    );
+  }
+
   Widget _buildVotingArea() {
-    // Stream active vote sessions for this family
-    // First, get the current user asynchronously
-    final userAsync = ref.watch(userStateProvider);
-    final sessionsAsync =
-        ref.watch(activeSessionsProvider(widget.selectedFamilyCode));
-
-    // If user data isn't ready yet, show a spinner
-    if (userAsync == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    final userEmail = userAsync.email!;
-
-    return sessionsAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Center(child: Text('Error loading vote: $e')),
-      data: (sessions) {
-        // No active poll: show button to start one
-        if (sessions.isEmpty) {
-          return Center(
-            child: ElevatedButton.icon(
-              onPressed: _startVote,
-              icon: const Icon(Icons.how_to_vote),
-              label: const Text('Ask to Vote'),
-            ),
-          );
-        }
-
-        // If there's an active session, render the VoteWidget
-        final session = sessions.first;
-        return VoteWidget(
-          session: session,
-          familyCode: widget.selectedFamilyCode,
-          userEmail: userEmail,
-        );
-      },
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _buildActionButton(
+          label: 'Ask for Vote',
+          color: Theme.of(context).colorScheme.primary,
+          onPressed: () async {
+            _setVotingStatus(true);
+            await FamilyService()
+                .syncVotingStatusWithGlobal(widget.selectedFamilyCode);
+          },
+        ),
+        const SizedBox(width: 16),
+        _buildActionButton(
+          label: 'Stop Voting',
+          color: Theme.of(context).colorScheme.error,
+          onPressed: () => _setVotingStatus(false),
+        ),
+      ],
     );
   }
 
@@ -296,12 +283,31 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     );
   }
 
+  Future<void> _setVotingStatus(bool isOpen) async {
+    final action = isOpen ? 'opened' : 'closed';
+    try {
+      await _familyService.setVotingStatus(
+        familyCode: widget.selectedFamilyCode,
+        isOpen: isOpen,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Voting has been $action successfully.')),
+      );
+    } catch (error, stack) {
+      // consider using a logging package instead of print in production
+      debugPrint('Error setting voting status: $error\n$stack');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to update voting status.')),
+      );
+    }
+  }
+
   void _showEditMenuDialog(String day) {
     // Initialize controllers to store values for lunch and dinner
-    List<TextEditingController> lunchControllers =
-        List.generate(3, (_) => TextEditingController());
-    List<TextEditingController> dinnerControllers =
-        List.generate(3, (_) => TextEditingController());
+    final lunchControllers = List.generate(3, (_) => TextEditingController());
+    final dinnerControllers = List.generate(3, (_) => TextEditingController());
 
     showDialog(
       context: context,
@@ -312,84 +318,80 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Lunch:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              const Text('Lunch:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              ...List.generate(3, (index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: TextFormField(
-                    controller: lunchControllers[index],
-                    decoration: InputDecoration(
-                      hintText: 'Lunch item ${index + 1}',
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+              ...lunchControllers.map((c) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: TextFormField(
+                      controller: c,
+                      decoration: InputDecoration(
+                        hintText: 'Lunch item',
+                        border: const OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  )),
               const SizedBox(height: 16),
-              const Text(
-                'Dinner:',
-                style: TextStyle(fontWeight: FontWeight.bold),
-              ),
+              const Text('Dinner:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              ...List.generate(3, (index) {
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: TextFormField(
-                    controller: dinnerControllers[index],
-                    decoration: InputDecoration(
-                      hintText: 'Dinner item ${index + 1}',
-                      border: const OutlineInputBorder(),
-                      contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
+              ...dinnerControllers.map((c) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: TextFormField(
+                      controller: c,
+                      decoration: InputDecoration(
+                        hintText: 'Dinner item',
+                        border: const OutlineInputBorder(),
+                      ),
                     ),
-                  ),
-                );
-              }),
+                  )),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () async {
-              // Collect updated lunch and dinner items
-              List<String> updatedLunch =
-                  lunchControllers.map((c) => c.text).toList();
-              List<String> updatedDinner =
-                  dinnerControllers.map((c) => c.text).toList();
+              // 1) gather new values
+              final updatedLunch =
+                  lunchControllers.map((c) => c.text.trim()).toList();
+              final updatedDinner =
+                  dinnerControllers.map((c) => c.text.trim()).toList();
 
               try {
-                // Call the update method to save to Firebase
-                await FamilyService().updateDailyMenu(
-                  familyCode: widget.selectedFamilyCode, // Pass family code
-                  day: day, // Pass the specific day (e.g., 'Monday')
+                // 2) update Firestore
+                await _familyService.updateDailyMenu(
+                  familyCode: widget.selectedFamilyCode,
+                  day: day,
                   lunchItems: updatedLunch,
                   dinnerItems: updatedDinner,
                 );
 
-                // Close dialog
-                Navigator.pop(context);
+                // 3) close dialog
+                if (context.mounted) Navigator.pop(context);
 
-                // Provide success feedback to the user
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$day menu updated successfully!')),
-                );
+                // 4) invalidate weekly menu stream
+                ref.invalidate(weeklyMenuProvider(widget.selectedFamilyCode));
+
+                // 5) reload today's menu for the selection list
+                await _loadMenuItems();
+
+                // 6) show success
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('$day menu updated successfully!')),
+                  );
+                }
               } catch (e) {
-                // In case of error, show error message
-                Navigator.pop(context);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error updating $day menu: $e')),
-                );
+                // on error, close dialog and show error
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error updating $day menu: $e')),
+                  );
+                }
               }
             },
             child: const Text('Save'),
@@ -402,6 +404,9 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
   @override
   @override
   Widget build(BuildContext context) {
+    // final votingAsync =
+    //     ref.watch(votingStatusProvider(widget.selectedFamilyCode));
+
     final weeklyMenuAsyncValue =
         ref.watch(weeklyMenuProvider(widget.selectedFamilyCode));
 
