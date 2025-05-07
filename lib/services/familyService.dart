@@ -1,7 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/services/userService.dart';
+import 'package:eatit/util.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 
 class FamilyService {
@@ -9,40 +11,9 @@ class FamilyService {
   final CollectionReference _familiesCollection =
       FirebaseFirestore.instance.collection('families_collection');
 
-  /// Converts a [FamilyModel] into a Map for Firestore storage.
-  Map<String, dynamic> _familyToMap(FamilyModel family) {
-    return {
-      'familyName': family.familyName,
-      'adminEmail': family.adminEmail,
-      'familyCode': family.familyCode,
-      'members': family.members,
-      'cook': family.cook,
-      'foodMenu': family.foodMenu,
-      'isDeleted': family.isDeleted,
-      'selectedMeal': family.selectedMeal,
-      'votes': family.votes,
-      'isVotingOpen': family.isVotingOpen,
-    };
-  }
-
-  /// Creates a [FamilyModel] from Firestore snapshot data.
   FamilyModel _mapToFamilyModel(DocumentSnapshot snap) {
     final data = snap.data() as Map<String, dynamic>;
-
-    return FamilyModel(
-      familyName: data['familyName'] as String? ?? '',
-      adminEmail: data['adminEmail'] as String? ?? '',
-      familyCode: snap.id,
-      members: List<String>.from(data['members'] as List? ?? const []),
-      cook: data['cook'] as String?,
-      foodMenu: Map<String, dynamic>.from(data['foodMenu'] ?? {}),
-      isDeleted: data['isDeleted'] as bool? ?? false,
-      selectedMeal: data['selectedMeal'] as String? ?? '',
-      votes: (data['votes'] as Map<String, dynamic>? ?? {}).map(
-        (key, value) => MapEntry(key, List<String>.from(value as List)),
-      ),
-      isVotingOpen: data['isVotingOpen'] as bool? ?? false,
-    );
+    return FamilyModel.fromMap(data, snap.id);
   }
 
   Future<void> createAndStoreFamilyInFirebase(FamilyModel family) async {
@@ -63,7 +34,7 @@ class FamilyService {
       final docRef = _familiesCollection.doc();
       final updated = family.copyWith(familyCode: docRef.id);
 
-      await docRef.set(_familyToMap(updated));
+      await docRef.set(updated.toMap());
 
       await UserService().addOrRemoveUserFamilies(
         userEmail: updated.adminEmail,
@@ -81,7 +52,7 @@ class FamilyService {
   Future<void> updateFamilyFoodMenu({
     required String familyCode,
     required String day,
-    required String mealType, // 'lunch' or 'dinner'
+    required String mealType,
     required List<String> values,
   }) async {
     try {
@@ -324,6 +295,68 @@ class FamilyService {
     } catch (e) {
       print("❌ Error updating selectedMeal: $e");
       rethrow;
+    }
+  }
+
+  Future<void> setVotingStatus({
+    required String familyCode,
+    required bool isOpen,
+  }) async {
+    try {
+      await _familiesCollection.doc(familyCode).update({
+        'isVotingOpen': isOpen,
+      });
+      if (kDebugMode) {
+        print("✅ Voting status set to $isOpen");
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("❌ Error updating voting status: $e");
+      }
+      rethrow;
+    }
+  }
+
+  Future<bool> getVotingStatus(String familyCode) async {
+    try {
+      final snap = await _familiesCollection.doc(familyCode).get();
+      if (!snap.exists) return false;
+
+      final data = snap.data() as Map<String, dynamic>;
+      return data['isVotingOpen'] as bool? ?? false;
+    } catch (e) {
+      print("❌ Error fetching voting status: $e");
+      return false;
+    }
+  }
+
+  Future<void> submitVote({
+    required String familyCode,
+    required String selectedItem,
+  }) async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || user.email == null) {
+      throw Exception('No authenticated user with an email found.');
+    }
+    final userEmail = user.email!;
+    final path = FieldPath(['votes', userEmail]);
+    // Update the single map entry without overwriting the rest:
+    await _familiesCollection.doc(familyCode).update({
+      path: selectedItem,
+    });
+  }
+
+  Future<void> syncVotingStatusWithGlobal(String familyCode) async {
+    try {
+      final isOpen = await getVotingStatus(familyCode);
+      votingStatus.setVotingOpen(isOpen); // ✅ update global
+      if (kDebugMode) {
+        print("🔄 Synced global voting status to: $isOpen");
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print("❌ Error syncing voting status: $e");
+      }
     }
   }
 }
