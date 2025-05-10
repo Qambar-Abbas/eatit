@@ -1,8 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/ui/voteWidget.dart';
-import 'package:flutter/material.dart';
 
+//
 class UserMenuScreen extends StatefulWidget {
   final void Function(int) onSwitchScreen;
   final List<FamilyModel> families;
@@ -10,29 +11,50 @@ class UserMenuScreen extends StatefulWidget {
   final void Function(String) onFamilyChange;
 
   const UserMenuScreen({
-    Key? key,
+    super.key,
     required this.onSwitchScreen,
     required this.families,
     required this.selectedFamilyCode,
     required this.onFamilyChange,
-  }) : super(key: key);
+  });
 
   @override
-  _UserMenuScreenState createState() => _UserMenuScreenState();
+  State<UserMenuScreen> createState() => _UserMenuScreenState();
 }
 
 class _UserMenuScreenState extends State<UserMenuScreen> {
   late Future<List<String>> _menuItemsFuture;
   late Future<bool> _votingStatusFuture;
-  String confirmedSelection = 'Nothing yet';
+  String _confirmedSelection = 'Nothing yet';
 
   @override
   void initState() {
     super.initState();
-    _menuItemsFuture =
-        FamilyService().getFoodMenuByTime(widget.selectedFamilyCode);
-    _votingStatusFuture =
-        FamilyService().getVotingStatus(widget.selectedFamilyCode);
+    _fetchData();
+  }
+
+  void _fetchData() {
+    final familyCode = widget.selectedFamilyCode;
+    _menuItemsFuture = FamilyService().getFoodMenuByTime(familyCode);
+    _votingStatusFuture = FamilyService().getVotingStatus(familyCode);
+  }
+
+  void _handleVote(String selectedFood) async {
+    try {
+      await FamilyService().submitVote(
+        familyCode: widget.selectedFamilyCode,
+        selectedItem: selectedFood,
+      );
+      setState(() => _confirmedSelection = selectedFood);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Your vote for $selectedFood is recorded!')),
+      );
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Failed to submit vote. Please try again.')),
+      );
+    }
   }
 
   @override
@@ -51,77 +73,14 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
             const Text('You are going to eat:'),
             const SizedBox(height: 4),
             Text(
-              confirmedSelection,
+              _confirmedSelection,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-            FutureBuilder<bool>(
-              future: _votingStatusFuture,
-              builder: (context, voteSnap) {
-                if (voteSnap.connectionState == ConnectionState.waiting) {
-                  return const CircularProgressIndicator();
-                }
-                if (voteSnap.hasError) {
-                  return Text(
-                    'Error loading voting status: ${voteSnap.error}',
-                    style: const TextStyle(color: Colors.red),
-                  );
-                }
-
-                final isVotingOpen = voteSnap.data ?? false;
-
-                return FutureBuilder<List<String>>(
-                  future: _menuItemsFuture,
-                  builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting) {
-                      return const CircularProgressIndicator();
-                    }
-                    if (snap.hasError) {
-                      return Text(
-                        'Error loading menu: ${snap.error}',
-                        style: const TextStyle(color: Colors.red),
-                      );
-                    }
-
-                    final menuItems = snap.data!;
-                    if (menuItems.isEmpty) {
-                      return const Text('No menu items available.');
-                    }
-
-                    final foodItems = menuItems
-                        .map((name) => FoodItem(name, 0, Colors.blueAccent))
-                        .toList();
-
-                    return VotingMenuChart(
-                      items: foodItems,
-                      isVotingOpen: isVotingOpen,
-                      title: 'Live Voting Results',
-                      subtitle: 'Votes by family members',
-                      onSendVote: (selectedFood) async {
-                        try {
-                          await FamilyService().submitVote(
-                            familyCode: widget.selectedFamilyCode,
-                            selectedItem: selectedFood,
-                          );
-                          setState(() => confirmedSelection = selectedFood);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                  'Your vote for $selectedFood is recorded!'),
-                            ),
-                          );
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text(
-                                    'Failed to submit vote. Please try again.')),
-                          );
-                        }
-                      },
-                    );
-                  },
-                );
-              },
+            VotingStatusBuilder(
+              votingStatusFuture: _votingStatusFuture,
+              menuItemsFuture: _menuItemsFuture,
+              onVote: _handleVote,
             ),
           ],
         ),

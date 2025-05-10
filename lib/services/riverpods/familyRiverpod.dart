@@ -53,3 +53,8 @@ final selectedMealProvider =
       .snapshots()
       .map((snap) => (snap.data()?['selectedMeal'] ?? '') as String);
 });
+
+final votesProvider =
+    FutureProvider.family<Map<String, String>, String>((ref, familyId) async {
+  return await FamilyService().getVotes(familyId);
+});

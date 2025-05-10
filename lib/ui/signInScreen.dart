@@ -184,26 +184,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
     _navigateToHome(revivedUser);
   }
 
-  // Future<void> _reviveAccount(User firebaseUser) async {
-  //   final UserModel? existingUser =
-  //       await userService.getUserData(firebaseUser.email!);
-  //   if (existingUser != null) {
-  //     final Map<String, dynamic> updatedData = existingUser.toJson()
-  //       ..['isDeleted'] = false;
-  //     await _firestore
-  //         .collection('users_collection')
-  //         .doc(firebaseUser.email)
-  //         .update(updatedData);
-  //   } else {
-  //     // Fallback if the record is missing.
-  //     await userService.storeUserInFirestore(firebaseUser);
-  //   }
-  //   final UserModel revivedUser = UserModel.fromFirebaseUser(firebaseUser);
-  //   await userService.storeUserLocally(revivedUser);
-  //   _showSnackBar('Your previous account has been revived.');
-  //   _navigateToHome(revivedUser);
-  // }
-
   /// Creates a new account by overriding the old document.
   Future<void> _createNewAccount(User firebaseUser) async {
     await userService.storeUserInFirestore(firebaseUser);

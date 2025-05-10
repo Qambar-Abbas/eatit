@@ -1,18 +1,10 @@
-// lib/ui/vote_widget.dart
-
 import 'dart:math';
-import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 
-class FoodItem {
-  final String name;
-  final int votes;
-  final Color color;
-  const FoodItem(this.name, this.votes, this.color);
-}
+import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/material.dart';
 
 class VotingMenuChart extends StatefulWidget {
-  final List<FoodItem> items;
+  final List<Map<String, dynamic>> items;
   final String title;
   final String subtitle;
   final ValueChanged<String> onSendVote;
@@ -40,13 +32,16 @@ class _VotingMenuChartState extends State<VotingMenuChart> {
   @override
   void initState() {
     super.initState();
-    selectedItem = widget.items.first.name;
+    selectedItem = widget.items.first['name'] as String;
   }
 
   @override
   Widget build(BuildContext context) {
-    final maxY =
-        widget.items.map((e) => e.votes).fold(0, (a, b) => a > b ? a : b) * 1.2;
+    final maxY = widget.items
+            .map((e) => e['votes'] as int)
+            .fold(0, (a, b) => a > b ? a : b) *
+        1.2;
+
     Widget card = SizedBox(
       width: widget.width,
       height: widget.height,
@@ -85,13 +80,15 @@ class _VotingMenuChartState extends State<VotingMenuChart> {
       child: ListView(
         children: widget.items
             .map((item) => InkWell(
-                  onTap: () => setState(() => selectedItem = item.name),
+                  onTap: () =>
+                      setState(() => selectedItem = item['name'] as String),
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                         vertical: 12, horizontal: 16),
-                    color:
-                        item.name == selectedItem ? Colors.blue.shade100 : null,
-                    child: Text(item.name,
+                    color: item['name'] == selectedItem
+                        ? Colors.blue.shade100
+                        : null,
+                    child: Text(item['name'],
                         style: Theme.of(context).textTheme.bodyLarge),
                   ),
                 ))
@@ -140,7 +137,7 @@ class _VotingMenuChartState extends State<VotingMenuChart> {
                       distanceFromEdge: 4,
                       parentAxisSize: 60,
                       axisPosition: 0),
-                  child: Text(widget.items[i].name,
+                  child: Text(widget.items[i]['name'],
                       style: Theme.of(context).textTheme.bodySmall),
                 );
               }),
@@ -159,11 +156,13 @@ class _VotingMenuChartState extends State<VotingMenuChart> {
       ),
       barGroups: widget.items.asMap().entries.map((e) {
         final item = e.value;
-        final isSel = item.name == selectedItem;
+        final isSel = item['name'] == selectedItem;
         return BarChartGroupData(x: e.key, barRods: [
           BarChartRodData(
-            toY: item.votes.toDouble(),
-            color: isSel ? Theme.of(context).colorScheme.primary : item.color,
+            toY: (item['votes'] as int).toDouble(),
+            color: isSel
+                ? Theme.of(context).colorScheme.primary
+                : item['color'] as Color,
             width: 20,
             borderRadius: BorderRadius.circular(4),
           )
@@ -171,6 +170,7 @@ class _VotingMenuChartState extends State<VotingMenuChart> {
       }).toList(),
       alignment: BarChartAlignment.spaceAround,
     ));
+
     return widget.height != null
         ? SizedBox(height: widget.height! * 0.6, child: chart)
         : AspectRatio(aspectRatio: 1.7, child: chart);
@@ -185,4 +185,96 @@ class _VotingMenuChartState extends State<VotingMenuChart> {
           child: const Text('Send Vote'),
         ),
       );
+}
+
+// 👇 This must be outside the UserMenuScreen class
+class VotingStatusBuilder extends StatelessWidget {
+  final Future<bool> votingStatusFuture;
+  final Future<List<String>> menuItemsFuture;
+  final void Function(String) onVote;
+
+  const VotingStatusBuilder({
+    super.key,
+    required this.votingStatusFuture,
+    required this.menuItemsFuture,
+    required this.onVote,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: votingStatusFuture,
+      builder: (context, voteSnap) {
+        if (voteSnap.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        }
+        if (voteSnap.hasError) {
+          return Text(
+            'Error loading voting status: ${voteSnap.error}',
+            style: const TextStyle(color: Colors.red),
+          );
+        }
+
+        final isVotingOpen = voteSnap.data ?? false;
+
+        return MenuListBuilder(
+          menuItemsFuture: menuItemsFuture,
+          isVotingOpen: isVotingOpen,
+          onVote: onVote,
+        );
+      },
+    );
+  }
+}
+
+class MenuListBuilder extends StatelessWidget {
+  final Future<List<String>> menuItemsFuture;
+  final bool isVotingOpen;
+  final void Function(String) onVote;
+
+  const MenuListBuilder({
+    super.key,
+    required this.menuItemsFuture,
+    required this.isVotingOpen,
+    required this.onVote,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<String>>(
+      future: menuItemsFuture,
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const CircularProgressIndicator();
+        }
+        if (snap.hasError) {
+          return Text(
+            'Error loading menu: ${snap.error}',
+            style: const TextStyle(color: Colors.red),
+          );
+        }
+
+        final menuItems = snap.data!;
+        if (menuItems.isEmpty) {
+          return const Text('No menu items available.');
+        }
+
+        final foodItems = menuItems
+            .map((name) => {
+                  'name': name,
+                  'votes': 0,
+                  'color': Colors.blueAccent,
+                })
+            .toList();
+
+        return VotingMenuChart(
+          items: foodItems,
+          isVotingOpen: isVotingOpen,
+          title: 'Live Voting Results',
+          subtitle: 'Votes by family members',
+          onSendVote: onVote,
+        );
+      },
+    );
+  }
 }
