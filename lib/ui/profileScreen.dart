@@ -42,6 +42,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(
+            onPressed: () {
+              setState(() {
+                ref.invalidate(userFamiliesProvider(user.email!));
+              });
+            },
+            icon: const Icon(Icons.refresh)),
         title: const Text('Profile'),
         centerTitle: true,
         actions: [

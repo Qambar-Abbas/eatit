@@ -1,11 +1,13 @@
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/services/riverpods/familyRiverpod.dart';
+import 'package:eatit/ui/voteWidget.dart';
 
 import 'package:flutter/material.dart';
 import 'package:eatit/models/familyModel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+//
 class CookMenuScreen extends ConsumerStatefulWidget {
   final Function(int) onSwitchScreen;
   final List<FamilyModel> families;
@@ -25,7 +27,9 @@ class CookMenuScreen extends ConsumerStatefulWidget {
 }
 
 class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
-  List<String>? _menuItems;
+  Future<List<String>>? _menuItems;
+  late Future<bool> _votingStatusFuture;
+
   final List<String> _weekDays = [
     'Monday',
     'Tuesday',
@@ -47,14 +51,16 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     super.initState();
     _updateTime();
     _loadMenuItems();
+    _votingStatusFuture =
+        _familyService.getVotingStatus(widget.selectedFamilyCode);
   }
 
   Future<void> _loadMenuItems() async {
     if (widget.selectedFamilyCode.isNotEmpty) {
-      final menu =
-          await _familyService.getFoodMenuByTime(widget.selectedFamilyCode);
+      final menuFuture =
+          _familyService.getFoodMenuByTime(widget.selectedFamilyCode);
       setState(() {
-        _menuItems = menu;
+        _menuItems = menuFuture;
       });
     }
   }
@@ -112,12 +118,12 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
   }
 
   // --- Menu Selection Section ---
-  Widget _buildMenuSelection() {
-    // Filter out null or empty items
-    final foodItems =
-        _menuItems?.where((item) => item.trim().isNotEmpty).toList() ?? [];
 
-    if (foodItems.isEmpty) {
+  Widget _buildFoodSelectionMenu(List<String> foodItems) {
+    final filteredItems =
+        foodItems.where((item) => item.trim().isNotEmpty).toList();
+
+    if (filteredItems.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 24.0),
         child: Center(
@@ -132,9 +138,9 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     return SizedBox(
       height: 160,
       child: ListView.builder(
-        itemCount: foodItems.length,
+        itemCount: filteredItems.length,
         itemBuilder: (context, index) {
-          final item = foodItems[index];
+          final item = filteredItems[index];
           final isSelected = item == _currentSelection;
 
           return Card(
@@ -207,27 +213,87 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     );
   }
 
+  void _handleVote(String selectedFood) async {
+    try {
+      await FamilyService().submitVote(
+        familyCode: widget.selectedFamilyCode,
+        selectedItem: selectedFood,
+      );
+      setState(() => _confirmedSelection = selectedFood);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Your vote for $selectedFood is recorded!')),
+      );
+    } catch (_) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Failed to submit vote. Please try again.')),
+      );
+    }
+  }
+
   Widget _buildVotingArea() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+    if (_menuItems == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildActionButton(
-          label: 'Ask for Vote',
-          color: Theme.of(context).colorScheme.primary,
-          onPressed: () async {
-            _setVotingStatus(true);
-            await FamilyService()
-                .syncVotingStatusWithGlobal(widget.selectedFamilyCode);
-          },
+        VotingStatusBuilder(
+          votingStatusFuture: _votingStatusFuture,
+          menuItemsFuture: _menuItems!,
+          onVote: _handleVote,
         ),
-        const SizedBox(width: 16),
-        _buildActionButton(
-          label: 'Stop Voting',
-          color: Theme.of(context).colorScheme.error,
-          onPressed: () => _setVotingStatus(false),
+        Row(
+          children: [
+            _buildActionButton(
+              label: 'Ask for Vote',
+              color: Theme.of(context).colorScheme.primary,
+              onPressed: () async {
+                _setVotingStatus(true);
+                await FamilyService()
+                    .syncVotingStatusWithGlobal(widget.selectedFamilyCode);
+                // once opened, refresh the status
+                setState(() {
+                  _votingStatusFuture =
+                      _familyService.getVotingStatus(widget.selectedFamilyCode);
+                });
+              },
+            ),
+            const SizedBox(width: 16),
+            _buildActionButton(
+              label: 'Stop Voting',
+              color: Theme.of(context).colorScheme.error,
+              onPressed: () async {
+                await _setVotingStatus(false);
+                // and refresh status again
+                setState(() {
+                  _votingStatusFuture =
+                      _familyService.getVotingStatus(widget.selectedFamilyCode);
+                });
+              },
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant CookMenuScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedFamilyCode != widget.selectedFamilyCode) {
+      // re-load menu items
+      setState(() {
+        _menuItems =
+            _familyService.getFoodMenuByTime(widget.selectedFamilyCode);
+      });
+      // re-load voting status
+      setState(() {
+        _votingStatusFuture =
+            _familyService.getVotingStatus(widget.selectedFamilyCode);
+      });
+    }
   }
 
   // --- Weekly Menu Section ---
@@ -428,12 +494,27 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
                   error: (e, _) => _buildHeader('Error'),
                   data: (selectedMeal) => _buildHeader(selectedMeal),
                 ),
-                if (_menuItems != null) _buildMenuSelection(),
-                if (_menuItems == null) const CircularProgressIndicator(),
+                // if (_menuItems != null) _buildMenuSelection(),
+                // if (_menuItems == null) const CircularProgressIndicator(),
+                if (_menuItems != null)
+                  FutureBuilder<List<String>>(
+                    future: _menuItems,
+                    builder: (context, snapshot) {
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(child: CircularProgressIndicator());
+                      } else if (snapshot.hasError) {
+                        return Text('Error loading menu: ${snapshot.error}');
+                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                        return const Text('No menu items found.');
+                      } else {
+                        return _buildFoodSelectionMenu(snapshot.data!);
+                      }
+                    },
+                  ),
+
                 const SizedBox(height: 16),
                 _buildUpdateButton(),
                 const SizedBox(height: 24),
-                // _buildVotingSection(screenHeight),
                 _buildVotingArea(),
                 const SizedBox(height: 24),
                 _buildFoodMenuTitle(),

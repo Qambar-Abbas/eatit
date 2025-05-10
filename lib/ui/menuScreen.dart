@@ -1,3 +1,4 @@
+import 'package:eatit/util.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:eatit/services/userService.dart';
@@ -63,7 +64,10 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
           );
         } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return Scaffold(
-            appBar: AppBar(centerTitle: true, title: const Text("No Family")),
+            appBar: AppBar(
+              centerTitle: true,
+              title: const Text("No Family"),
+            ),
             body: const Center(
               child: Text("You have not joined or created any family yet."),
             ),
@@ -85,6 +89,19 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
 
         return Scaffold(
           appBar: AppBar(
+            actions: <Widget>[
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                tooltip: 'Refresh',
+                onPressed: () {
+                  refreshAll(
+                    ref,
+                    familyCode: _selectedFamilyCode,
+                    userEmail: _userEmail,
+                  );
+                },
+              ),
+            ],
             centerTitle: true,
             title: DropdownButton<String>(
               value: _selectedFamilyCode,

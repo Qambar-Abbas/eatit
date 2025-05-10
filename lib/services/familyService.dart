@@ -359,4 +359,29 @@ class FamilyService {
       }
     }
   }
+
+  Future<Map<String, String>> getVotes(String familyCode) async {
+    try {
+      final doc = await _firestore
+          .collection('families_collection')
+          .doc(familyCode)
+          .get();
+
+      if (!doc.exists) {
+        throw Exception('Family not found');
+      }
+
+      final data = doc.data();
+      if (data == null || data['votes'] == null) {
+        return {}; // no votes found
+      }
+
+      // Casting the votes to Map<String, String>
+      final Map<String, dynamic> rawVotes = data['votes'];
+      return rawVotes.map((key, value) => MapEntry(key, value.toString()));
+    } catch (e) {
+      print('Error fetching votes: $e');
+      rethrow;
+    }
+  }
 }
