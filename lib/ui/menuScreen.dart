@@ -89,19 +89,17 @@ class _MenuScreenState extends ConsumerState<MenuScreen> {
 
         return Scaffold(
           appBar: AppBar(
-            actions: <Widget>[
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                tooltip: 'Refresh',
-                onPressed: () {
-                  refreshAll(
-                    ref,
-                    familyCode: _selectedFamilyCode,
-                    userEmail: _userEmail,
-                  );
-                },
-              ),
-            ],
+            leading: IconButton(
+              icon: const Icon(Icons.refresh),
+              tooltip: 'Refresh',
+              onPressed: () {
+                refreshAll(
+                  ref,
+                  familyCode: _selectedFamilyCode,
+                  userEmail: _userEmail,
+                );
+              },
+            ),
             centerTitle: true,
             title: DropdownButton<String>(
               value: _selectedFamilyCode,

@@ -1,13 +1,11 @@
+import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/services/riverpods/familyRiverpod.dart';
 import 'package:eatit/ui/voteWidget.dart';
-
 import 'package:flutter/material.dart';
-import 'package:eatit/models/familyModel.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-//
 class CookMenuScreen extends ConsumerStatefulWidget {
   final Function(int) onSwitchScreen;
   final List<FamilyModel> families;
@@ -28,166 +26,139 @@ class CookMenuScreen extends ConsumerStatefulWidget {
 
 class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
   Future<List<String>>? _menuItems;
+  late Future<List<String>> _menuItemsFuture;
   late Future<bool> _votingStatusFuture;
 
-  final List<String> _weekDays = [
+  String? _currentSelection;
+  String? _confirmedSelection;
+  String _currentTime = '';
+  String _mealTimeText = '';
+
+  final _weekDays = const [
     'Monday',
     'Tuesday',
     'Wednesday',
     'Thursday',
     'Friday',
     'Saturday',
-    'Sunday',
+    'Sunday'
   ];
 
-  String? _currentSelection;
-  String? _confirmedSelection;
-  String _currentTime = '';
-  String _mealTimeText = 'Lunch Time';
   final FamilyService _familyService = FamilyService();
 
   @override
   void initState() {
     super.initState();
-    _updateTime();
-    _loadMenuItems();
+    _syncState();
+    _startClock();
+  }
+
+  void _syncState() {
+    _menuItemsFuture =
+        _familyService.getFoodMenuByTime(widget.selectedFamilyCode);
     _votingStatusFuture =
         _familyService.getVotingStatus(widget.selectedFamilyCode);
   }
 
-  Future<void> _loadMenuItems() async {
-    if (widget.selectedFamilyCode.isNotEmpty) {
-      final menuFuture =
-          _familyService.getFoodMenuByTime(widget.selectedFamilyCode);
-      setState(() {
-        _menuItems = menuFuture;
-      });
+  void _startClock() {
+    final now = DateTime.now();
+    final hour = now.hour;
+
+    setState(() {
+      _currentTime = DateFormat('HH:mm:ss').format(now);
+      _mealTimeText = hour >= 17 ? 'Dinner Time' : 'Lunch Time';
+    });
+
+    Future.delayed(const Duration(seconds: 1), _startClock);
+  }
+
+  @override
+  void didUpdateWidget(covariant CookMenuScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selectedFamilyCode != widget.selectedFamilyCode) {
+      _syncState();
     }
   }
 
-  Future<void> _updateTime() async {
-    final now = DateTime.now();
-    final formattedTime = DateFormat('HH:mm:ss').format(now);
-    final hour = now.hour;
-    final newMealTimeText = hour >= 17 ? 'Dinner Time' : 'Lunch Time';
-
-    setState(() {
-      _currentTime = formattedTime;
-      _mealTimeText = newMealTimeText;
-    });
-
-    Future.delayed(const Duration(seconds: 1), _updateTime);
-  }
-
-  // --- Header Section ---
   Widget _buildHeader(String selectedMeal) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          _currentTime,
-          style: const TextStyle(fontSize: 16, color: Colors.black54),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          _mealTimeText,
-          style: const TextStyle(fontSize: 14, color: Colors.black45),
-        ),
-        const SizedBox(height: 4),
+        Text(_currentTime,
+            style: const TextStyle(fontSize: 16, color: Colors.black54)),
+        Text(_mealTimeText,
+            style: const TextStyle(fontSize: 14, color: Colors.black45)),
         if (selectedMeal.isNotEmpty)
-          Text(
-            'Decided Meal: $selectedMeal',
-            style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.blueAccent),
-          ),
+          Text('Decided Meal: $selectedMeal',
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.blueAccent)),
+        const SizedBox(height: 4),
+        const Text("You're the cook",
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        const Text("Decide what everyone's gonna eat:",
+            style: TextStyle(fontSize: 16, color: Colors.black54)),
         const SizedBox(height: 8),
-        const Text(
-          "You're the cook",
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 8),
-        const Text(
-          "Decide what everyone's gonna eat:",
-          style: TextStyle(fontSize: 16, color: Colors.black54),
-        ),
-        const SizedBox(height: 16),
       ],
     );
   }
 
-  // --- Menu Selection Section ---
-
   Widget _buildFoodSelectionMenu(List<String> foodItems) {
-    final filteredItems =
-        foodItems.where((item) => item.trim().isNotEmpty).toList();
-
-    if (filteredItems.isEmpty) {
+    final filtered = foodItems.where((item) => item.trim().isNotEmpty).toList();
+    if (filtered.isEmpty) {
       return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 24.0),
+        padding: EdgeInsets.symmetric(vertical: 24),
         child: Center(
-          child: Text(
-            'Food menu needs to be updated.',
-            style: TextStyle(fontSize: 16, color: Colors.redAccent),
-          ),
-        ),
+            child: Text('Food menu needs to be updated.',
+                style: TextStyle(color: Colors.redAccent))),
       );
     }
 
-    return SizedBox(
-      height: 160,
-      child: ListView.builder(
-        itemCount: filteredItems.length,
-        itemBuilder: (context, index) {
-          final item = filteredItems[index];
-          final isSelected = item == _currentSelection;
-
-          return Card(
-            elevation: isSelected ? 4 : 1,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-              side: isSelected
-                  ? BorderSide(color: Colors.blue.shade400, width: 2)
-                  : BorderSide.none,
-            ),
-            child: ListTile(
-              title: Center(child: Text(item)),
-              tileColor: isSelected ? Colors.blue.shade50 : null,
-              onTap: () => setState(() => _currentSelection = item),
-            ),
-          );
-        },
-      ),
+    return ListView.builder(
+      shrinkWrap: true,
+      itemCount: filtered.length,
+      itemBuilder: (_, index) {
+        final item = filtered[index];
+        final isSelected = item == _currentSelection;
+        return Card(
+          elevation: isSelected ? 4 : 1,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: isSelected
+                ? BorderSide(color: Colors.blue.shade400, width: 2)
+                : BorderSide.none,
+          ),
+          child: ListTile(
+            title: Center(child: Text(item)),
+            tileColor: isSelected ? Colors.blue.shade50 : null,
+            onTap: () => setState(() => _currentSelection = item),
+          ),
+        );
+      },
     );
   }
 
   Widget _buildUpdateButton() {
     return Center(
       child: ElevatedButton(
-        onPressed: (_currentSelection == null)
+        onPressed: _currentSelection == null
             ? null
             : () async {
-                setState(() {
-                  _confirmedSelection = _currentSelection;
-                });
-
+                final selected = _currentSelection!;
+                setState(() => _confirmedSelection = selected);
                 try {
-                  final result = await _familyService.updateSelectedMeal(
-                    familyCode: widget.selectedFamilyCode,
-                    selectedMeal: _confirmedSelection!,
-                  );
-
+                  final msg = await _familyService.updateSelectedMeal(
+                      familyCode: widget.selectedFamilyCode,
+                      selectedMeal: selected);
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text(result)),
-                    );
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text(msg)));
                   }
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('❌ Error: $e')),
-                    );
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('❌ Error: $e')));
                   }
                 }
               },
@@ -213,160 +184,91 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     );
   }
 
-  void _handleVote(String selectedFood) async {
-    try {
-      await FamilyService().submitVote(
-        familyCode: widget.selectedFamilyCode,
-        selectedItem: selectedFood,
-      );
-      setState(() => _confirmedSelection = selectedFood);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Your vote for $selectedFood is recorded!')),
-      );
-    } catch (_) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Failed to submit vote. Please try again.')),
-      );
-    }
-  }
-
   Widget _buildVotingArea() {
-    if (_menuItems == null) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        VotingStatusBuilder(
+    return FutureBuilder<bool>(
+      future: _votingStatusFuture,
+      builder: (_, snapshot) {
+        if (!snapshot.hasData) return const CircularProgressIndicator();
+        return VotingStatusBuilder(
           votingStatusFuture: _votingStatusFuture,
-          menuItemsFuture: _menuItems!,
+          menuItemsFuture: _menuItemsFuture,
           onVote: _handleVote,
-        ),
-        Row(
-          children: [
-            _buildActionButton(
-              label: 'Ask for Vote',
-              color: Theme.of(context).colorScheme.primary,
-              onPressed: () async {
-                _setVotingStatus(true);
-                await FamilyService()
-                    .syncVotingStatusWithGlobal(widget.selectedFamilyCode);
-                // once opened, refresh the status
-                setState(() {
-                  _votingStatusFuture =
-                      _familyService.getVotingStatus(widget.selectedFamilyCode);
-                });
-              },
-            ),
-            const SizedBox(width: 16),
-            _buildActionButton(
-              label: 'Stop Voting',
-              color: Theme.of(context).colorScheme.error,
-              onPressed: () async {
-                await _setVotingStatus(false);
-                // and refresh status again
-                setState(() {
-                  _votingStatusFuture =
-                      _familyService.getVotingStatus(widget.selectedFamilyCode);
-                });
-              },
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  @override
-  void didUpdateWidget(covariant CookMenuScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.selectedFamilyCode != widget.selectedFamilyCode) {
-      // re-load menu items
-      setState(() {
-        _menuItems =
-            _familyService.getFoodMenuByTime(widget.selectedFamilyCode);
-      });
-      // re-load voting status
-      setState(() {
-        _votingStatusFuture =
-            _familyService.getVotingStatus(widget.selectedFamilyCode);
-      });
-    }
-  }
-
-  // --- Weekly Menu Section ---
-  Widget _buildFoodMenuTitle() {
-    return const Text(
-      "Update Food Menu:",
-      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-    );
-  }
-
-  Widget _buildWeeklyMenuList(
-      AsyncValue<Map<String, dynamic>> weeklyMenuAsync) {
-    return weeklyMenuAsync.when(
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, _) => Text('Error loading menu: $e'),
-      data: (weeklyMenu) {
-        return ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: _weekDays.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, index) {
-            final day = _weekDays[index];
-            final lunchItems =
-                List<String>.from(weeklyMenu[day]?['lunch'] ?? []);
-            final dinnerItems =
-                List<String>.from(weeklyMenu[day]?['dinner'] ?? []);
-
-            return Card(
-              child: InkWell(
-                onTap: () => _showEditMenuDialog(day),
-                borderRadius: BorderRadius.circular(12.5),
-                child: ListTile(
-                  leading: const Icon(Icons.calendar_today_outlined),
-                  title: Text(day),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 4),
-                      Text('Lunch: ${lunchItems.join(', ')}',
-                          style: const TextStyle(fontSize: 12)),
-                      Text('Dinner: ${dinnerItems.join(', ')}',
-                          style: const TextStyle(fontSize: 12)),
-                    ],
-                  ),
-                  trailing: const Icon(Icons.restaurant_menu_outlined),
-                ),
-              ),
-            );
-          },
         );
       },
     );
   }
 
+  Row askForVoteAndStopVotingButton() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: [
+        _buildActionButton(
+          label: 'Ask for Vote',
+          color: Theme.of(context).colorScheme.primary,
+          onPressed: () async {
+            await _setVotingStatus(true);
+            setState(() => _votingStatusFuture =
+                _familyService.getVotingStatus(widget.selectedFamilyCode));
+          },
+        ),
+        const SizedBox(width: 16),
+        _buildActionButton(
+          label: 'Stop Voting',
+          color: Theme.of(context).colorScheme.error,
+          onPressed: () async {
+            await _setVotingStatus(false);
+            setState(() => _votingStatusFuture =
+                _familyService.getVotingStatus(widget.selectedFamilyCode));
+          },
+        ),
+      ],
+    );
+  }
+
   Future<void> _setVotingStatus(bool isOpen) async {
-    final action = isOpen ? 'opened' : 'closed';
     try {
       await _familyService.setVotingStatus(
-        familyCode: widget.selectedFamilyCode,
-        isOpen: isOpen,
-      );
+          familyCode: widget.selectedFamilyCode, isOpen: isOpen);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Voting has been $action successfully.')),
-      );
-    } catch (error, stack) {
-      // consider using a logging package instead of print in production
-      debugPrint('Error setting voting status: $error\n$stack');
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Voting has been ${isOpen ? 'opened' : 'closed'}')));
+    } catch (e) {
+      debugPrint('Voting error: $e');
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Failed to update voting status.')),
       );
+    }
+  }
+
+  void _handleVote(String item) async {
+    try {
+      await _familyService.submitVote(
+        familyCode: widget.selectedFamilyCode,
+        selectedItem: item,
+      );
+      setState(() => _confirmedSelection = item);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Your vote for $item is recorded!')),
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to submit vote.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _loadMenuItems() async {
+    if (widget.selectedFamilyCode.isNotEmpty) {
+      final menuFuture =
+          _familyService.getFoodMenuByTime(widget.selectedFamilyCode);
+      setState(() {
+        _menuItems = menuFuture;
+      });
     }
   }
 
@@ -467,19 +369,57 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
     );
   }
 
-  @override
+  Widget _buildWeeklyMenuList(
+      AsyncValue<Map<String, dynamic>> weeklyMenuAsync) {
+    return weeklyMenuAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Text('Error loading menu: $e'),
+      data: (weeklyMenu) {
+        return ListView.separated(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _weekDays.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
+          itemBuilder: (context, index) {
+            final day = _weekDays[index];
+            final lunchItems =
+                List<String>.from(weeklyMenu[day]?['lunch'] ?? []);
+            final dinnerItems =
+                List<String>.from(weeklyMenu[day]?['dinner'] ?? []);
+
+            return Card(
+              child: InkWell(
+                onTap: () => _showEditMenuDialog(day),
+                borderRadius: BorderRadius.circular(12.5),
+                child: ListTile(
+                  leading: const Icon(Icons.calendar_today_outlined),
+                  title: Text(day),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 4),
+                      Text('Lunch: ${lunchItems.join(', ')}',
+                          style: const TextStyle(fontSize: 12)),
+                      Text('Dinner: ${dinnerItems.join(', ')}',
+                          style: const TextStyle(fontSize: 12)),
+                    ],
+                  ),
+                  trailing: const Icon(Icons.restaurant_menu_outlined),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    // final votingAsync =
-    //     ref.watch(votingStatusProvider(widget.selectedFamilyCode));
-
-    final weeklyMenuAsyncValue =
+    final weeklyMenuAsync =
         ref.watch(weeklyMenuProvider(widget.selectedFamilyCode));
-
-    final selectedMealAsyncValue =
+    final selectedMealAsync =
         ref.watch(selectedMealProvider(widget.selectedFamilyCode));
-
-    // final double screenHeight = MediaQuery.of(context).size.height;
 
     return Scaffold(
       body: SafeArea(
@@ -489,37 +429,70 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                selectedMealAsyncValue.when(
+                selectedMealAsync.when(
+                  data: _buildHeader,
                   loading: () => _buildHeader(''),
-                  error: (e, _) => _buildHeader('Error'),
-                  data: (selectedMeal) => _buildHeader(selectedMeal),
+                  error: (_, __) => _buildHeader('Error'),
                 ),
-                // if (_menuItems != null) _buildMenuSelection(),
-                // if (_menuItems == null) const CircularProgressIndicator(),
-                if (_menuItems != null)
-                  FutureBuilder<List<String>>(
-                    future: _menuItems,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      } else if (snapshot.hasError) {
-                        return Text('Error loading menu: ${snapshot.error}');
-                      } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Text('No menu items found.');
-                      } else {
-                        return _buildFoodSelectionMenu(snapshot.data!);
-                      }
-                    },
-                  ),
+                // inside your build() in place of the current FutureBuilder<List<String>> + _buildUpdateButton()
+                FutureBuilder<bool>(
+                  future: _votingStatusFuture,
+                  builder: (context, voteSnap) {
+                    if (voteSnap.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (voteSnap.hasError) {
+                      return Text(
+                          'Error loading voting status: ${voteSnap.error}');
+                    }
 
-                const SizedBox(height: 16),
-                _buildUpdateButton(),
+                    final isVotingOpen = voteSnap.data!;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1) FOOD SELECTION + UPDATE BUTTON
+                        Opacity(
+                          opacity: isVotingOpen ? 0.5 : 1.0,
+                          child: AbsorbPointer(
+                            absorbing: isVotingOpen,
+                            child: Column(
+                              children: [
+                                FutureBuilder<List<String>>(
+                                  future: _menuItemsFuture,
+                                  builder: (_, menuSnap) {
+                                    if (menuSnap.connectionState ==
+                                        ConnectionState.waiting) {
+                                      return const CircularProgressIndicator();
+                                    }
+                                    if (menuSnap.hasError) {
+                                      return Text(
+                                          'Error loading menu: ${menuSnap.error}');
+                                    }
+                                    final items = menuSnap.data ?? [];
+                                    return _buildFoodSelectionMenu(items);
+                                  },
+                                ),
+                                _buildUpdateButton(),
+                                const SizedBox(height: 8),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // 2) VOTING AREA (only active when isVotingOpen)
+                        if (isVotingOpen) _buildVotingArea(),
+                      ],
+                    );
+                  },
+                ),
+                askForVoteAndStopVotingButton(),
                 const SizedBox(height: 24),
-                _buildVotingArea(),
-                const SizedBox(height: 24),
-                _buildFoodMenuTitle(),
+                const Text("Update Food Menu:",
+                    style:
+                        TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                _buildWeeklyMenuList(weeklyMenuAsyncValue),
+                _buildWeeklyMenuList(weeklyMenuAsync),
               ],
             ),
           ),

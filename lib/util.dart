@@ -1,6 +1,6 @@
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/services/riverpods/familyRiverpod.dart';
-import 'package:eatit/services/riverpods/userStateRiverPod.dart';
+import 'package:eatit/services/riverpods/userStateRiverpod.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
