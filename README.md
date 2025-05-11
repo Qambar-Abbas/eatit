@@ -5,6 +5,14 @@ Whether you're cooking for yourself, your family, or hosting a dinner party, Men
 
 Changelog:
 
+[v1.9.2]
+
+
+
+[v1.9.1]
+
+
+
 [v1.9.0]
 
 
