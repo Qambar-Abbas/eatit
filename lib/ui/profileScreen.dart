@@ -494,15 +494,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             // display cookEmail directly
 
             return ExpansionTile(
-              title: Row(
-                children: [
-                  Text(family.familyName),
-                  // if (cookLabel != null) ...[
-                  //   const SizedBox(width: 12),
-                  //   Chip(label: Text(cookLabel)),
-                  // ],
-                ],
-              ),
+              title: Text(family.familyName),
               children: family.members.map((email) {
                 final isCook = email == cookEmail;
                 return ListTile(

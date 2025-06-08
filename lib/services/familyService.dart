@@ -4,6 +4,7 @@ import 'package:eatit/services/userService.dart';
 import 'package:eatit/util.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class FamilyService {
@@ -383,5 +384,22 @@ class FamilyService {
       print('Error fetching votes: $e');
       rethrow;
     }
+  }
+
+  // familyService.dart
+  Stream<List<Map<String, dynamic>>> watchVoteTotals(String familyCode) {
+    return FirebaseFirestore.instance
+        .collection('families')
+        .doc(familyCode)
+        .collection('votes')
+        .snapshots()
+        .map((snap) => snap.docs.map((doc) {
+              return {
+                'name': doc.id,
+                'votes': (doc.data()['count'] as int),
+                // choose colors however you like:
+                'color': Colors.blueAccent,
+              };
+            }).toList());
   }
 }
