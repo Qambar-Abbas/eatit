@@ -1,7 +1,7 @@
+import 'package:eatit/ui/Widgets/vote_widget/voting_menu_list.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../services/riverpods/familyRiverpod.dart';
-import 'voting_menu_list.dart';
+import '../../../../services/riverpods/familyRiverpod.dart';
 import 'voting_titles.dart';
 import 'voting_chart.dart';
 import 'voting_action_button.dart';

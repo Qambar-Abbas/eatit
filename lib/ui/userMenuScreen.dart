@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/services/familyService.dart';
 
-import 'Widgets/voting_status_builder.dart';
+import 'Widgets/vote_widget/voting_status_builder.dart';
 
 //
 class UserMenuScreen extends StatefulWidget {

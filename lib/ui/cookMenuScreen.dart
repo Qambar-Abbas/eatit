@@ -5,7 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-import 'Widgets/voting_status_builder.dart';
+import 'Widgets/vote_widget/voting_status_builder.dart';
+
 
 class CookMenuScreen extends ConsumerStatefulWidget {
   final Function(int) onSwitchScreen;
