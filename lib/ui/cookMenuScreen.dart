@@ -1,10 +1,11 @@
 import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/services/familyService.dart';
 import 'package:eatit/services/riverpods/familyRiverpod.dart';
-import 'package:eatit/ui/voteWidget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
+import 'Widgets/voting_status_builder.dart';
 
 class CookMenuScreen extends ConsumerStatefulWidget {
   final Function(int) onSwitchScreen;
@@ -193,6 +194,7 @@ class _CookMenuScreenState extends ConsumerState<CookMenuScreen> {
           votingStatusFuture: _votingStatusFuture,
           menuItemsFuture: _menuItemsFuture,
           onVote: _handleVote,
+          familyCode: widget.selectedFamilyCode,
         );
       },
     );

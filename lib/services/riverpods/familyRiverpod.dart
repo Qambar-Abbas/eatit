@@ -58,3 +58,10 @@ final votesProvider =
     FutureProvider.family<Map<String, String>, String>((ref, familyId) async {
   return await FamilyService().getVotes(familyId);
 });
+
+// familyRiverpod.dart
+final voteTotalsProvider = StreamProvider.autoDispose
+    .family<List<Map<String, dynamic>>, String>((ref, familyCode) {
+  final service = ref.watch(familyServiceProvider);
+  return service.watchVoteTotals(familyCode);
+});

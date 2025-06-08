@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:eatit/models/familyModel.dart';
 import 'package:eatit/services/familyService.dart';
-import 'package:eatit/ui/voteWidget.dart';
+
+import 'Widgets/voting_status_builder.dart';
 
 //
 class UserMenuScreen extends StatefulWidget {
@@ -81,6 +82,7 @@ class _UserMenuScreenState extends State<UserMenuScreen> {
               votingStatusFuture: _votingStatusFuture,
               menuItemsFuture: _menuItemsFuture,
               onVote: _handleVote,
+              familyCode: widget.selectedFamilyCode,
             ),
           ],
         ),

@@ -43,6 +43,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Eat-It',
       theme: appTheme,
+      debugShowCheckedModeBanner: false,
       home: user == null
           ? SignInScreen()
           : HomeNavigationBar(
