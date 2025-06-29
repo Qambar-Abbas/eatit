@@ -1,7 +1,26 @@
-# eatit
+[# eatit
 Eatit is your ultimate kitchen companion, designed specifically for home chefs. 
 This intuitive app takes the guesswork out of meal planning, helping you decide what's for breakfast, lunch, and dinner with ease.
 Whether you're cooking for yourself, your family, or hosting a dinner party, Menu Maestro ensures every meal is a masterpiece.
+
+## 📸 App Screenshots
+
+<table>
+  <tr>
+    <td><img src="https://github.com/Qambar-Abbas/eatit/blob/10923bdcf18c726e264a42b63af69e907ff5faf9/ScreenShots/Screenshot%202025-05-19%20at%205.32.36%E2%80%AFPM.png?raw=true" width="250"/></td>
+    <td><img src="https://github.com/Qambar-Abbas/eatit/blob/10923bdcf18c726e264a42b63af69e907ff5faf9/ScreenShots/Screenshot%202025-05-19%20at%205.33.26%E2%80%AFPM.png?raw=true" width="250"/></td>
+    <td><img src="https://github.com/Qambar-Abbas/eatit/blob/10923bdcf18c726e264a42b63af69e907ff5faf9/ScreenShots/Screenshot%202025-05-19%20at%205.33.36%E2%80%AFPM.png?raw=true" width="250"/></td>
+  </tr>
+  <tr>
+    <td><img src="https://github.com/Qambar-Abbas/eatit/blob/10923bdcf18c726e264a42b63af69e907ff5faf9/ScreenShots/Screenshot%202025-05-19%20at%205.34.23%E2%80%AFPM.png?raw=true" width="250"/></td>
+    <td><img src="https://github.com/Qambar-Abbas/eatit/blob/10923bdcf18c726e264a42b63af69e907ff5faf9/ScreenShots/Screenshot%202025-05-19%20at%205.34.54%E2%80%AFPM.png?raw=true" width="250"/></td>
+    <td></td>
+  </tr>
+</table>
+
+
+
+
 
 Changelog:
 
@@ -171,3 +190,4 @@ Refactored Drawer:
 Extracted drawer functionality into a separate CustomDrawer widget.
 Passed contactsFuture, onAddFamilyMember, onFilterContacts, searchQuery, and onSignOut as parameters to CustomDrawer.
 Updated the ProfileScreen to use CustomDrawer for improved modularity and code organization.
+](https://github.com/Qambar-Abbas/eatit/tree/10923bdcf18c726e264a42b63af69e907ff5faf9/ScreenShots)
